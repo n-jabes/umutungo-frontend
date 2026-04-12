@@ -1,0 +1,15 @@
+export const queryKeys = {
+  me: ["me"] as const,
+  assets: ["assets"] as const,
+  units: (assetId?: string) => ["units", assetId ?? "all"] as const,
+  tenants: ["tenants"] as const,
+  leases: ["leases"] as const,
+  leasesActive: ["leases", "active"] as const,
+  lease: (id: string) => ["lease", id] as const,
+  income: (month: string) => ["analytics", "income", month] as const,
+  outstanding: (month: string) => ["analytics", "outstanding", month] as const,
+  occupancy: ["analytics", "occupancy"] as const,
+  assetPerformance: (month: string) => ["analytics", "asset-performance", month] as const,
+  paymentSummary: (month: string) => ["payments", "summary", month] as const,
+  paymentsLease: (leaseId: string) => ["payments", "lease", leaseId] as const,
+};

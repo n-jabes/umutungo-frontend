@@ -3,19 +3,33 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --main-green: #14532d;
+  --main-blue: #1e3a8a;
+  --accent-gold: #d4af37;
+  --background: #f8fafc;
+  --card: #ffffff;
+  --border: #e5e7eb;
+  --foreground: #0f172a;
+  --muted: #64748b;
+  --muted-bg: #f1f5f9;
+  --success-soft: #ecfdf5;
+  --blue-soft: #eff6ff;
+  --gold-soft: #fffbeb;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@layer base {
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-geist-sans), system-ui, sans-serif;
   }
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+@layer utilities {
+  .tabular-nums-fin {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
 }
