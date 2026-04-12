@@ -4,7 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { currentMonth } from "@/lib/format";
 
@@ -32,13 +32,14 @@ export function AddAssetModal({
       }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.assets });
+      await qc.invalidateQueries({ queryKey: ["analytics"] });
       setName("");
       setLocation("");
       setPurchasePrice("");
       setError(null);
       onClose();
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: unknown) => setError(getErrorMessage(e)),
   });
 
   return (
@@ -135,7 +136,7 @@ export function AddTenantModal({
       setError(null);
       onClose();
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: unknown) => setError(getErrorMessage(e)),
   });
 
   return (
@@ -225,7 +226,7 @@ export function RecordPaymentModal({
       setError(null);
       onClose();
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: unknown) => setError(getErrorMessage(e)),
   });
 
   return (

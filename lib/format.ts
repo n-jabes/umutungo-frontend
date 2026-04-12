@@ -51,3 +51,24 @@ export function monthOffsets(count: number): string[] {
   }
   return out;
 }
+
+/** Inclusive billing-month range covering the last `count` calendar months (including current). */
+export function monthRangeLastN(count: number): { from: string; to: string } {
+  const months = monthOffsets(count);
+  return { from: months[0]!, to: months[months.length - 1]! };
+}
+
+/** January of current year through current month (YYYY-MM). */
+export function monthRangeYearToDate(): { from: string; to: string } {
+  const to = currentMonth();
+  const d = new Date();
+  const from = `${d.getFullYear()}-01`;
+  return { from, to };
+}
+
+/** Inclusive count of billing months between two YYYY-MM values (same month → 1). */
+export function monthSpanInclusive(from: string, to: string): number {
+  const [fy, fm] = from.split("-").map(Number);
+  const [ty, tm] = to.split("-").map(Number);
+  return (ty - fy) * 12 + (tm - fm) + 1;
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -9,15 +9,19 @@ import {
   Calendar,
   ChevronLeft,
   DoorClosed,
+  Home,
   Layers,
   LineChart,
   MapPin,
+  Plus,
   Sparkles,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { AddUnitModal } from "@/components/assets/add-unit-modal";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
-import { formatCompactMoney, formatMoney, formatPercent, monthOffsets } from "@/lib/format";
+import { formatCompactMoney, formatMoney, formatPercent, monthRangeLastN } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import type { Unit } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -32,6 +36,7 @@ const tabs = ["Overview", "Units", "Income", "Valuation", "Events"] as const;
 export default function AssetDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
+  const [unitModal, setUnitModal] = useState<null | "custom" | "whole">(null);
 
   const { data: assets } = useQuery({
     queryKey: queryKeys.assets,
@@ -57,23 +62,20 @@ export default function AssetDetailPage() {
     [leases, unitIds],
   );
 
-  const months = useMemo(() => monthOffsets(6), []);
-  const perfQueries = useQueries({
-    queries: months.map((m) => ({
-      queryKey: queryKeys.assetPerformance(m),
-      queryFn: () => api.assetPerformance(m),
-      enabled: !!asset,
-    })),
+  const chartRange = useMemo(() => monthRangeLastN(6), []);
+  const { data: assetIncomeSeries } = useQuery({
+    queryKey: queryKeys.incomeSeries(chartRange.from, chartRange.to, id),
+    queryFn: () => api.incomeSeries(chartRange.from, chartRange.to, id),
+    enabled: !!asset && !!id,
   });
 
   const incomeSeries = useMemo(() => {
-    if (!asset) return [];
-    return months.map((m, i) => {
-      const data = perfQueries[i]?.data;
-      const row = data?.assets.find((a) => a.assetId === asset.id);
-      return { month: m, income: row?.incomeForMonth ?? 0 };
-    });
-  }, [asset, months, perfQueries]);
+    if (!assetIncomeSeries) return [];
+    return assetIncomeSeries.series.map((p) => ({
+      month: p.month,
+      income: p.totalIncome,
+    }));
+  }, [assetIncomeSeries]);
 
   const occupiedUnits = useMemo(
     () => (units ?? []).filter((u) => u.status === "occupied").length,
@@ -124,6 +126,14 @@ export default function AssetDetailPage() {
 
   return (
     <div className="space-y-8">
+      <AddUnitModal
+        open={unitModal !== null}
+        onClose={() => setUnitModal(null)}
+        assetId={asset.id}
+        assetName={asset.name}
+        assetType={asset.type}
+        preset={unitModal === "whole" ? "whole" : "custom"}
+      />
       <div>
         <Link
           href="/assets"
@@ -199,6 +209,23 @@ export default function AssetDetailPage() {
                 value={formatCompactMoney(monthlyRentPotential)}
               />
             </CardContent>
+            {(units?.length ?? 0) === 0 ? (
+              <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
+                <Button type="button" size="sm" onClick={() => setUnitModal("custom")}>
+                  <Plus className="h-4 w-4" strokeWidth={1.75} />
+                  Add unit
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setUnitModal("whole")}
+                >
+                  <Home className="h-4 w-4" strokeWidth={1.75} />
+                  {asset.type === "land" ? "One rentable parcel" : "Single unit (whole property)"}
+                </Button>
+              </div>
+            ) : null}
           </Card>
           <Card className="p-6">
             <CardHeader className="p-0">
@@ -218,9 +245,26 @@ export default function AssetDetailPage() {
 
       {tab === "Units" && (
         <Card className="p-0">
-          <div className="border-b border-border px-6 py-4">
-            <h2 className="text-sm font-semibold text-foreground">Units</h2>
-            <p className="text-xs text-muted">Rentable spaces attached to this asset</p>
+          <div className="flex flex-col gap-3 border-b border-border px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-foreground">Units</h2>
+              <p className="text-xs text-muted">Rentable spaces attached to this asset</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" onClick={() => setUnitModal("custom")}>
+                <Plus className="h-4 w-4" strokeWidth={1.75} />
+                Add unit
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                onClick={() => setUnitModal("whole")}
+              >
+                <Home className="h-4 w-4" strokeWidth={1.75} />
+                {asset.type === "land" ? "One parcel" : "Whole property"}
+              </Button>
+            </div>
           </div>
           <ul className="divide-y divide-border">
             {(units ?? []).length ? (
@@ -248,7 +292,9 @@ export default function AssetDetailPage() {
               ))
             ) : (
               <li className="px-6 py-10 text-center text-sm text-muted">
-                No units yet. Add units so you can attach leases and track occupancy.
+                No units yet. Use <strong className="font-medium text-foreground">Add unit</strong> or{" "}
+                <strong className="font-medium text-foreground">Whole property</strong> above to create
+                rentable spaces, then attach leases.
               </li>
             )}
           </ul>

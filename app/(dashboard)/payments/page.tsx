@@ -1,14 +1,20 @@
 "use client";
 
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Filter, Receipt } from "lucide-react";
+import { CalendarRange, Filter, Receipt } from "lucide-react";
 import { RecordPaymentModal } from "@/components/dashboard/quick-dialogs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { api } from "@/lib/api";
-import { currentMonth, formatMoney, monthOffsets } from "@/lib/format";
+import { api, getErrorMessage } from "@/lib/api";
+import {
+  currentMonth,
+  formatMoney,
+  monthRangeLastN,
+  monthRangeYearToDate,
+  monthSpanInclusive,
+} from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import type { Payment } from "@/lib/types";
 
@@ -20,12 +26,16 @@ function PaymentsInner() {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [recordOpen, setRecordOpen] = useState(!!leaseFromUrl);
 
-  const months = useMemo(() => monthOffsets(12), []);
-  const summaries = useQueries({
-    queries: months.map((m) => ({
-      queryKey: queryKeys.paymentSummary(m),
-      queryFn: () => api.paymentSummary(m),
-    })),
+  const initialRange = useMemo(() => monthRangeLastN(12), []);
+  const [appliedFrom, setAppliedFrom] = useState(initialRange.from);
+  const [appliedTo, setAppliedTo] = useState(initialRange.to);
+  const [draftFrom, setDraftFrom] = useState(initialRange.from);
+  const [draftTo, setDraftTo] = useState(initialRange.to);
+  const [rangeError, setRangeError] = useState<string | null>(null);
+
+  const { data: summary, isLoading, isError, error, refetch } = useQuery({
+    queryKey: queryKeys.paymentSummaryRange(appliedFrom, appliedTo),
+    queryFn: () => api.paymentSummaryRange(appliedFrom, appliedTo),
   });
 
   const { data: leases } = useQuery({
@@ -43,19 +53,17 @@ function PaymentsInner() {
 
   const rows = useMemo(() => {
     const map = new Map<string, Payment & { leaseLabel: string }>();
-    for (const q of summaries) {
-      for (const p of q.data?.payments ?? []) {
-        const lease = p.lease;
-        const assetName = lease?.unit?.asset.name ?? "Lease";
-        const unitName = lease?.unit?.name;
-        const label = unitName ? `${assetName} · ${unitName}` : assetName;
-        map.set(p.id, { ...p, leaseLabel: label });
-      }
+    for (const p of summary?.payments ?? []) {
+      const lease = p.lease;
+      const assetName = lease?.unit?.asset.name ?? "Lease";
+      const unitName = lease?.unit?.name;
+      const label = unitName ? `${assetName} · ${unitName}` : assetName;
+      map.set(p.id, { ...p, leaseLabel: label });
     }
     return [...map.values()].sort(
       (a, b) => new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime(),
     );
-  }, [summaries]);
+  }, [summary]);
 
   const filtered = useMemo(() => {
     return rows.filter((r) => {
@@ -73,6 +81,28 @@ function PaymentsInner() {
     });
   }, [rows, filter, rentByLease]);
 
+  function applyRange() {
+    setRangeError(null);
+    if (draftFrom > draftTo) {
+      setRangeError("Start month must be on or before end month.");
+      return;
+    }
+    if (monthSpanInclusive(draftFrom, draftTo) > 36) {
+      setRangeError("Maximum range is 36 months.");
+      return;
+    }
+    setAppliedFrom(draftFrom);
+    setAppliedTo(draftTo);
+  }
+
+  function setPreset(range: { from: string; to: string }) {
+    setRangeError(null);
+    setDraftFrom(range.from);
+    setDraftTo(range.to);
+    setAppliedFrom(range.from);
+    setAppliedTo(range.to);
+  }
+
   const filters: { key: FilterKey; label: string }[] = [
     { key: "all", label: "All" },
     { key: "paid", label: "Paid" },
@@ -87,13 +117,95 @@ function PaymentsInner() {
           <p className="text-xs font-semibold uppercase tracking-wider text-muted">Ledger</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Payments</h1>
           <p className="mt-2 max-w-2xl text-sm text-muted">
-            Consolidated rent entries from the last twelve billing months, with collection filters.
+            One request loads all payments in your chosen billing-month range (up to 36 months).
+            Adjust the range below, then apply.
           </p>
         </div>
         <Button type="button" className="self-start" onClick={() => setRecordOpen(true)}>
           Record payment
         </Button>
       </div>
+
+      <Card className="space-y-4 border-border p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+            <CalendarRange className="h-3.5 w-3.5" strokeWidth={1.75} />
+            Billing months
+          </span>
+          <div className="flex flex-wrap items-center gap-2 sm:ml-2">
+            <label className="sr-only" htmlFor="pay-from">
+              From
+            </label>
+            <input
+              id="pay-from"
+              type="month"
+              className="h-9 rounded-lg border border-border bg-background px-2 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={draftFrom}
+              onChange={(e) => setDraftFrom(e.target.value)}
+            />
+            <span className="text-xs text-muted">to</span>
+            <label className="sr-only" htmlFor="pay-to">
+              To
+            </label>
+            <input
+              id="pay-to"
+              type="month"
+              className="h-9 rounded-lg border border-border bg-background px-2 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={draftTo}
+              onChange={(e) => setDraftTo(e.target.value)}
+            />
+            <Button type="button" size="sm" variant="secondary" onClick={applyRange}>
+              Apply range
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <span className="w-full text-[11px] font-medium uppercase tracking-wide text-muted sm:w-auto sm:mr-2">
+            Quick
+          </span>
+          <button
+            type="button"
+            onClick={() => setPreset(monthRangeLastN(6))}
+            className="rounded-lg border border-border bg-muted-bg/50 px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted-bg"
+          >
+            Last 6 months
+          </button>
+          <button
+            type="button"
+            onClick={() => setPreset(monthRangeLastN(12))}
+            className="rounded-lg border border-border bg-muted-bg/50 px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted-bg"
+          >
+            Last 12 months
+          </button>
+          <button
+            type="button"
+            onClick={() => setPreset(monthRangeYearToDate())}
+            className="rounded-lg border border-border bg-muted-bg/50 px-3 py-1.5 text-xs font-medium text-foreground transition hover:bg-muted-bg"
+          >
+            Year to date
+          </button>
+        </div>
+        {rangeError ? <p className="text-sm text-red-600">{rangeError}</p> : null}
+        {summary && !isLoading ? (
+          <p className="text-xs text-muted">
+            Showing <strong className="font-medium text-foreground">{summary.count}</strong>{" "}
+            payment{summary.count === 1 ? "" : "s"} in{" "}
+            <strong className="font-medium text-foreground">
+              {summary.from} — {summary.to}
+            </strong>
+            {" · "}
+            Total <strong className="font-medium text-main-green">{formatMoney(summary.totalAmount)}</strong>
+          </p>
+        ) : null}
+        {isError ? (
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+            <span>{getErrorMessage(error)}</span>
+            <Button type="button" size="sm" variant="secondary" onClick={() => void refetch()}>
+              Retry
+            </Button>
+          </div>
+        ) : null}
+      </Card>
 
       <Card className="flex flex-wrap items-center gap-2 border-border p-4">
         <span className="mr-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
@@ -132,7 +244,7 @@ function PaymentsInner() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {summaries.some((s) => s.isLoading) ? (
+            {isLoading ? (
               <tr>
                 <td colSpan={6} className="px-6 py-10 text-center text-sm text-muted">
                   Loading payment history…
@@ -166,7 +278,7 @@ function PaymentsInner() {
             ) : (
               <tr>
                 <td colSpan={6} className="px-6 py-10 text-center text-sm text-muted">
-                  No payments match this filter.
+                  No payments match this filter in the selected range.
                 </td>
               </tr>
             )}

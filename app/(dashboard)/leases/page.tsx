@@ -6,7 +6,8 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
+import { filterMoneyInput, isValidMoneyAmount, normalizeMoneyInput } from "@/lib/decimal-input";
 import { formatMoney } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 
@@ -129,18 +130,23 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createLease({
+    mutationFn: () => {
+      const rentNorm = normalizeMoneyInput(rent);
+      const depRaw = deposit.trim();
+      const depNorm = depRaw === "" ? "" : normalizeMoneyInput(deposit);
+      return api.createLease({
         unitId,
         tenantId: tenantId || undefined,
         startDate,
-        rentAmountAtTime: rent.trim(),
-        deposit: deposit.trim() || undefined,
-      }),
+        rentAmountAtTime: rentNorm,
+        deposit: depNorm === "" ? undefined : depNorm,
+      });
+    },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: queryKeys.units() });
+      await qc.invalidateQueries({ queryKey: ["analytics"] });
       setUnitId("");
       setTenantId("");
       setRent("");
@@ -148,7 +154,7 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
       setError(null);
       onClose();
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: unknown) => setError(getErrorMessage(e)),
   });
 
   return (
@@ -164,8 +170,20 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
         onSubmit={(e) => {
           e.preventDefault();
           setError(null);
-          if (!unitId || !rent.trim()) {
-            setError("Unit and rent are required.");
+          if (!unitId) {
+            setError("Select a unit.");
+            return;
+          }
+          const rentNorm = normalizeMoneyInput(rent);
+          if (!isValidMoneyAmount(rentNorm)) {
+            setError("Rent must be a positive number (e.g. 800000 or 1500.50).");
+            return;
+          }
+          const depNorm = normalizeMoneyInput(deposit);
+          if (deposit.trim() !== "" && !isValidMoneyAmount(depNorm)) {
+            setError(
+              "Security deposit must be a number only (e.g. 0 or 500000), not payment notes.",
+            );
             return;
           }
           mutation.mutate();
@@ -223,21 +241,33 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
             <label className="text-xs font-medium text-muted">Rent amount</label>
             <input
               required
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
+              placeholder="e.g. 800000"
               className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
               value={rent}
-              onChange={(e) => setRent(e.target.value)}
-              inputMode="decimal"
+              onChange={(e) => setRent(filterMoneyInput(e.target.value))}
             />
+            <p className="mt-1 text-[11px] text-muted">
+              Monthly rent for this contract (digits only; use 0 if needed).
+            </p>
           </div>
         </div>
         <div>
-          <label className="text-xs font-medium text-muted">Deposit (optional)</label>
+          <label className="text-xs font-medium text-muted">Security deposit (optional)</label>
           <input
+            type="text"
+            inputMode="decimal"
+            autoComplete="off"
+            placeholder="e.g. 0 or 500000"
             className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
             value={deposit}
-            onChange={(e) => setDeposit(e.target.value)}
-            inputMode="decimal"
+            onChange={(e) => setDeposit(filterMoneyInput(e.target.value))}
           />
+          <p className="mt-1 text-[11px] text-muted">
+            One-time deposit amount in the same currency as rent. Leave empty for none.
+          </p>
         </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="flex justify-end gap-2 pt-2">

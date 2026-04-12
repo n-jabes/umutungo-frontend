@@ -73,6 +73,16 @@ export type Payment = {
 
 export type IncomeAnalytics = { month: string; totalIncome: number };
 
+export type IncomeSeriesPoint = { month: string; totalIncome: number };
+
+/** `GET /analytics/income-series` — portfolio or one asset. */
+export type IncomeSeriesAnalytics = {
+  from: string;
+  to: string;
+  assetId: string | null;
+  series: IncomeSeriesPoint[];
+};
+
 export type OutstandingRent = {
   month: string;
   outstanding: number;
@@ -105,6 +115,15 @@ export type AssetPerformance = {
 
 export type MonthlyPaymentSummary = {
   month: string;
+  totalAmount: number;
+  count: number;
+  payments: Payment[];
+};
+
+/** Response from `GET /payments/summary?from=&to=` */
+export type PaymentRangeSummary = {
+  from: string;
+  to: string;
   totalAmount: number;
   count: number;
   payments: Payment[];

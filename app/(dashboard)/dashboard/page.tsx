@@ -25,7 +25,13 @@ import {
 } from "@/components/dashboard/quick-dialogs";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { api } from "@/lib/api";
-import { currentMonth, formatCompactMoney, formatMoney, formatPercent, monthOffsets } from "@/lib/format";
+import {
+  currentMonth,
+  formatCompactMoney,
+  formatMoney,
+  formatPercent,
+  monthRangeLastN,
+} from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 
 const IncomeChart = dynamic(
@@ -63,18 +69,11 @@ export default function DashboardPage() {
     queryFn: () => api.listAssets(),
   });
 
-  const chartMonths = useMemo(() => monthOffsets(6), []);
+  const chartRange = useMemo(() => monthRangeLastN(6), []);
   const incomeSeries = useQuery({
-    queryKey: ["dashboard", "income-series", chartMonths.join(",")],
-    queryFn: async () => {
-      const rows = await Promise.all(
-        chartMonths.map(async (m) => {
-          const r = await api.income(m);
-          return { month: m, income: r.totalIncome };
-        }),
-      );
-      return rows;
-    },
+    queryKey: queryKeys.incomeSeries(chartRange.from, chartRange.to),
+    queryFn: () => api.incomeSeries(chartRange.from, chartRange.to),
+    select: (d) => d.series.map((p) => ({ month: p.month, income: p.totalIncome })),
   });
 
   const totalBookValue = useMemo(() => {

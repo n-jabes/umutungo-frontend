@@ -1,12 +1,12 @@
 "use client";
 
-import { useQuery, useQueries } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { Landmark, PieChart, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api";
-import { formatCompactMoney, formatPercent, monthOffsets } from "@/lib/format";
+import { formatCompactMoney, formatPercent, monthRangeLastN } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 
 const GrowthChart = dynamic(
@@ -27,12 +27,10 @@ export default function PortfolioPage() {
     queryFn: () => api.occupancy(),
   });
 
-  const months = useMemo(() => monthOffsets(8), []);
-  const incomeQs = useQueries({
-    queries: months.map((m) => ({
-      queryKey: queryKeys.income(m),
-      queryFn: () => api.income(m),
-    })),
+  const chartRange = useMemo(() => monthRangeLastN(8), []);
+  const { data: incomeSeriesData } = useQuery({
+    queryKey: queryKeys.incomeSeries(chartRange.from, chartRange.to),
+    queryFn: () => api.incomeSeries(chartRange.from, chartRange.to),
   });
 
   const book = useMemo(
@@ -42,11 +40,11 @@ export default function PortfolioPage() {
 
   const series = useMemo(
     () =>
-      months.map((m, i) => ({
-        month: m,
-        income: incomeQs[i]?.data?.totalIncome ?? 0,
+      (incomeSeriesData?.series ?? []).map((p) => ({
+        month: p.month,
+        income: p.totalIncome,
       })),
-    [months, incomeQs],
+    [incomeSeriesData],
   );
 
   const last = series[series.length - 1]?.income ?? 0;

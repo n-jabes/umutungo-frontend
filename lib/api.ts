@@ -1,23 +1,21 @@
-import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
+import axios, { isAxiosError } from "axios";
 import { normalizeApiBaseUrl } from "./api-base-url";
-
-type RetryConfig = InternalAxiosRequestConfig & { _authRetry?: boolean };
+import { REFRESH_KEY, TOKEN_KEY } from "./api-session-keys";
 import type {
   Asset,
   AssetPerformance,
   IncomeAnalytics,
+  IncomeSeriesAnalytics,
   Lease,
   MonthlyPaymentSummary,
   OccupancyAnalytics,
   OutstandingRent,
   Payment,
+  PaymentRangeSummary,
   Tenant,
   Unit,
   UserPublic,
 } from "./types";
-
-const TOKEN_KEY = "umutungo_access";
-const REFRESH_KEY = "umutungo_refresh";
 
 export function getAccessToken(): string | null {
   if (typeof window === "undefined") return null;
@@ -86,8 +84,10 @@ function unwrap<T>(body: Ok<T> | Err): T {
 }
 
 export function getErrorMessage(err: unknown): string {
-  const ax = err as AxiosError<Err>;
-  if (ax.response?.data?.message) return ax.response.data.message;
+  if (isAxiosError<Err>(err)) {
+    const msg = err.response?.data?.message;
+    if (typeof msg === "string" && msg) return msg;
+  }
   if (err instanceof Error) return err.message;
   return "Something went wrong";
 }
@@ -226,6 +226,13 @@ export const api = {
     return unwrap(data);
   },
 
+  async paymentSummaryRange(from: string, to: string) {
+    const { data } = await rawApi.get<Ok<PaymentRangeSummary>>("/payments/summary", {
+      params: { from, to },
+    });
+    return unwrap(data);
+  },
+
   async paymentsByLease(leaseId: string) {
     const { data } = await rawApi.get<Ok<Payment[]>>(`/payments/lease/${leaseId}`);
     return unwrap(data);
@@ -234,6 +241,13 @@ export const api = {
   async income(month: string) {
     const { data } = await rawApi.get<Ok<IncomeAnalytics>>("/analytics/income", {
       params: { month },
+    });
+    return unwrap(data);
+  },
+
+  async incomeSeries(from: string, to: string, assetId?: string) {
+    const { data } = await rawApi.get<Ok<IncomeSeriesAnalytics>>("/analytics/income-series", {
+      params: assetId ? { from, to, assetId } : { from, to },
     });
     return unwrap(data);
   },
@@ -257,28 +271,3 @@ export const api = {
     return unwrap(data);
   },
 };
-
-rawApi.interceptors.response.use(
-  (r) => r,
-  async (error) => {
-    const original = error.config as RetryConfig | undefined;
-    if (!original || original._authRetry) throw error;
-    if (error.response?.status !== 401) throw error;
-    if (original.url?.includes("/auth/refresh")) throw error;
-
-    const rt =
-      typeof window !== "undefined" ? localStorage.getItem(REFRESH_KEY) : null;
-    if (!rt) throw error;
-
-    original._authRetry = true;
-    try {
-      const next = await api.refresh(rt);
-      setSessionTokens(next.accessToken, next.refreshToken);
-      original.headers.Authorization = `Bearer ${next.accessToken}`;
-      return rawApi(original);
-    } catch {
-      clearSessionTokens();
-      throw error;
-    }
-  },
-);
