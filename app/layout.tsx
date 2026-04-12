@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import Script from "next/script";
 import { Providers } from "@/components/providers";
 import { resolveApiBaseForClientInjection } from "@/lib/api-base-url";
 import "./globals.css";
@@ -32,7 +33,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} ${geistSans.className} antialiased`}
       >
-        <script dangerouslySetInnerHTML={{ __html: apiBootstrap }} />
+        <Script
+          id="umutungo-api-base"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: apiBootstrap }}
+        />
         <Providers>{children}</Providers>
       </body>
     </html>

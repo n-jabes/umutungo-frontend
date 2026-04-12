@@ -56,7 +56,19 @@ export const rawApi = axios.create({
 });
 
 rawApi.interceptors.request.use((config) => {
-  config.baseURL = baseURL();
+  const root = baseURL().replace(/\/+$/, "");
+  const requestPath = config.url;
+  // Always send absolute URLs so axios never resolves a host-only base against the current page
+  // (e.g. /umutungo-backend…/auth/login on localhost:3000).
+  if (requestPath && !/^https?:\/\//i.test(requestPath)) {
+    const path = requestPath.startsWith("/") ? requestPath : `/${requestPath}`;
+    config.baseURL = "";
+    config.url = `${root}${path}`;
+  } else if (requestPath) {
+    config.baseURL = "";
+  } else {
+    config.baseURL = root;
+  }
   const t = getAccessToken();
   if (t) {
     config.headers.Authorization = `Bearer ${t}`;
