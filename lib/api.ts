@@ -1,4 +1,5 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
+import { normalizeApiBaseUrl } from "./api-base-url";
 
 type RetryConfig = InternalAxiosRequestConfig & { _authRetry?: boolean };
 import type {
@@ -33,16 +34,29 @@ export function clearSessionTokens() {
   localStorage.removeItem(REFRESH_KEY);
 }
 
-function baseURL() {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+/**
+ * Prefer `window.__UMUTUNGO_API_BASE__` set by the root layout (server env each dev session).
+ * Falls back to NEXT_PUBLIC_API_URL (inlined at compile time).
+ * Host-only values are normalized with https:// so axios does not treat them as paths on the current origin.
+ */
+function baseURL(): string {
+  if (typeof window !== "undefined") {
+    const injected = window.__UMUTUNGO_API_BASE__;
+    if (typeof injected === "string" && injected.trim()) {
+      return normalizeApiBaseUrl(injected);
+    }
+  }
+  const raw = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000").trim();
+  if (!raw) return "http://localhost:4000";
+  return normalizeApiBaseUrl(raw);
 }
 
 export const rawApi = axios.create({
-  baseURL: baseURL(),
   withCredentials: true,
 });
 
 rawApi.interceptors.request.use((config) => {
+  config.baseURL = baseURL();
   const t = getAccessToken();
   if (t) {
     config.headers.Authorization = `Bearer ${t}`;
