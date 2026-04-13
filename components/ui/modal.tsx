@@ -25,13 +25,13 @@ export function Modal({
     <div className="fixed inset-0 z-[100] flex items-end justify-center p-0 sm:items-center sm:p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-foreground/25 backdrop-blur-[1px] transition-opacity"
+        className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity"
         aria-label="Close dialog"
         onClick={onClose}
       />
       <div
         className={cn(
-          "relative mt-auto w-full rounded-t-2xl border border-border bg-card shadow-card sm:mt-0 sm:rounded-xl",
+          "relative mt-auto w-full rounded-t-2xl border border-gray-200 bg-card shadow-2xl sm:mt-0 sm:rounded-xl",
           max,
         )}
         role="dialog"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -17,10 +17,12 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { AddUnitModal } from "@/components/assets/add-unit-modal";
+import { RowActions } from "@/components/ui/row-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { formatCompactMoney, formatMoney, formatPercent, monthRangeLastN } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import type { Unit } from "@/lib/types";
@@ -34,9 +36,31 @@ const IncomeChart = dynamic(
 const tabs = ["Overview", "Units", "Income", "Valuation", "Events"] as const;
 
 export default function AssetDetailPage() {
+  const qc = useQueryClient();
   const { id } = useParams<{ id: string }>();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const [unitModal, setUnitModal] = useState<null | "custom" | "whole">(null);
+  const deleteUnitMutation = useMutation({
+    mutationFn: (unitId: string) => api.deleteUnit(unitId),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.units(id) });
+      await qc.invalidateQueries({ queryKey: queryKeys.units() });
+      await qc.invalidateQueries({ queryKey: queryKeys.occupancy });
+      await qc.invalidateQueries({ queryKey: queryKeys.leases });
+      await qc.invalidateQueries({ queryKey: queryKeys.assets });
+      toast.success("Unit deleted");
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+  const updateUnitMutation = useMutation({
+    mutationFn: ({ unitId, name }: { unitId: string; name: string }) => api.updateUnit(unitId, { name }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.units(id) });
+      await qc.invalidateQueries({ queryKey: queryKeys.units() });
+      toast.success("Unit updated");
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
 
   const { data: assets } = useQuery({
     queryKey: queryKeys.assets,
@@ -284,10 +308,29 @@ export default function AssetDetailPage() {
                       </p>
                     </div>
                   </div>
-                  <p className="text-sm font-semibold tabular-nums-fin text-foreground">
-                    {u.rentAmount ? formatMoney(u.rentAmount) : "—"}
-                    <span className="ml-1 text-xs font-normal text-muted">/ period</span>
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold tabular-nums-fin text-foreground">
+                      {u.rentAmount ? formatMoney(u.rentAmount) : "—"}
+                      <span className="ml-1 text-xs font-normal text-muted">/ period</span>
+                    </p>
+                    <RowActions
+                      onView={() => toast.info(`Unit: ${u.name ?? "Unnamed unit"}`)}
+                      onEdit={() => {
+                        const nextName = window.prompt("Edit unit name", u.name ?? "");
+                        if (nextName !== null) {
+                          const trimmed = nextName.trim();
+                          updateUnitMutation.mutate({ unitId: u.id, name: trimmed });
+                        }
+                      }}
+                      onDelete={() =>
+                        toast.promise(deleteUnitMutation.mutateAsync(u.id), {
+                          loading: "Deleting unit...",
+                          success: "Unit deleted",
+                          error: "Failed to delete unit",
+                        })
+                      }
+                    />
+                  </div>
                 </li>
               ))
             ) : (

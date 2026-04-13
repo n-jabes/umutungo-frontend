@@ -3,6 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, FileText, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { RowActions } from "@/components/ui/row-actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
@@ -12,11 +14,14 @@ import { formatMoney } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 
 export default function LeasesPage() {
+  const qc = useQueryClient();
   const { data: leases, isLoading } = useQuery({
     queryKey: queryKeys.leases,
     queryFn: () => api.listLeases(),
   });
   const [createOpen, setCreateOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "ended">("all");
+  const [page, setPage] = useState(1);
 
   const sorted = useMemo(
     () =>
@@ -25,6 +30,27 @@ export default function LeasesPage() {
       ),
     [leases],
   );
+  const filtered = useMemo(
+    () =>
+      sorted.filter((lease) => {
+        if (statusFilter === "all") return true;
+        return statusFilter === "active" ? lease.status === "active" : lease.status !== "active";
+      }),
+    [sorted, statusFilter],
+  );
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const endMutation = useMutation({
+    mutationFn: ({ id, endDate }: { id: string; endDate: string }) => api.endLease(id, endDate),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.leases });
+      await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
+      toast.success("Lease ended successfully");
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
 
   return (
     <div className="space-y-8">
@@ -41,6 +67,23 @@ export default function LeasesPage() {
           New lease
         </Button>
       </div>
+      <Card className="p-3">
+        <div className="flex gap-2">
+          {(["all", "active", "ended"] as const).map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              onClick={() => {
+                setStatusFilter(filter);
+                setPage(1);
+              }}
+              className={statusFilter === filter ? "rounded-lg bg-blue-soft px-3 py-1.5 text-xs font-medium text-main-blue" : "rounded-lg px-3 py-1.5 text-xs font-medium text-muted"}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+      </Card>
 
       {isLoading ? (
         <p className="text-sm text-muted">Loading leases…</p>
@@ -50,7 +93,7 @@ export default function LeasesPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {sorted.map((l) => (
+          {rows.map((l) => (
             <div
               key={l.id}
               id={l.id}
@@ -78,7 +121,20 @@ export default function LeasesPage() {
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="flex items-start gap-2 text-right">
+                  <RowActions
+                    onView={() => (window.location.href = `/leases#${l.id}`)}
+                    onEdit={() => toast.info("Lease edit can be implemented with a dedicated form modal")}
+                    onDelete={() => {
+                      if (l.status !== "active") {
+                        toast.info("Lease already ended");
+                        return;
+                      }
+                      endMutation.mutate({ id: l.id, endDate: new Date().toISOString().slice(0, 10) });
+                    }}
+                    deleteLabel="End lease"
+                  />
+                  <div>
                   <p className="text-lg font-semibold tabular-nums-fin text-foreground">
                     {formatMoney(l.rentAmountAtTime)}
                   </p>
@@ -92,12 +148,39 @@ export default function LeasesPage() {
                   >
                     {l.status}
                   </span>
+                  </div>
                 </div>
               </div>
             </div>
           ))}
         </div>
       )}
+      <div className="flex items-center justify-between text-sm text-muted">
+        <p>
+          Showing {rows.length} of {filtered.length} leases
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className="rounded-lg border border-border px-3 py-1.5 disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span>
+            {page} / {pageCount}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            disabled={page >= pageCount}
+            className="rounded-lg border border-border px-3 py-1.5 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      </div>
 
       <CreateLeaseModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
@@ -152,9 +235,14 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
       setRent("");
       setDeposit("");
       setError(null);
+      toast.success("Lease created successfully");
       onClose();
     },
-    onError: (e: unknown) => setError(getErrorMessage(e)),
+    onError: (e: unknown) => {
+      const msg = getErrorMessage(e);
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   return (

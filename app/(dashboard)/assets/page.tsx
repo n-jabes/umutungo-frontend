@@ -1,11 +1,14 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Building2, ChevronRight, MapPin, TrendingUp } from "lucide-react";
-import { useMemo } from "react";
+import { Building2, ChevronRight, MapPin, Plus, TrendingUp } from "lucide-react";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { AddAssetModal } from "@/components/dashboard/quick-dialogs";
+import { RowActions } from "@/components/ui/row-actions";
 import { Card, CardContent } from "@/components/ui/card";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { currentMonth, formatCompactMoney, formatMoney } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import type { Asset } from "@/lib/types";
@@ -15,7 +18,12 @@ function typeLabel(t: Asset["type"]) {
 }
 
 export default function AssetsPage() {
+  const qc = useQueryClient();
   const month = currentMonth();
+  const [typeFilter, setTypeFilter] = useState<"all" | Asset["type"]>("all");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [page, setPage] = useState(1);
+  const [createOpen, setCreateOpen] = useState(false);
   const { data: assets, isLoading } = useQuery({
     queryKey: queryKeys.assets,
     queryFn: () => api.listAssets(),
@@ -32,17 +40,74 @@ export default function AssetsPage() {
     }
     return m;
   }, [perf]);
+  const pageSize = 10;
+
+  const filtered = useMemo(() => {
+    return (assets ?? []).filter((a) => {
+      const byType = typeFilter === "all" || a.type === typeFilter;
+      const byLocation =
+        !locationFilter.trim() ||
+        (a.location ?? "").toLowerCase().includes(locationFilter.trim().toLowerCase());
+      return byType && byLocation;
+    });
+  }, [assets, typeFilter, locationFilter]);
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteAsset(id),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.assets });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
 
   return (
     <div className="space-y-8">
-      <div>
+      <AddAssetModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-muted">Portfolio</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Assets</h1>
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Properties and land you track on Umutungo. Select an asset for units, cash flow, and
           investment context.
         </p>
+        </div>
+        <button
+          type="button"
+          className="inline-flex items-center gap-2 rounded-lg bg-main-blue px-4 py-2 text-sm font-medium text-white"
+          onClick={() => setCreateOpen(true)}
+        >
+          <Plus className="h-4 w-4" />
+          New asset
+        </button>
       </div>
+      <Card className="p-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <select
+            value={typeFilter}
+            onChange={(e) => {
+              setTypeFilter(e.target.value as "all" | Asset["type"]);
+              setPage(1);
+            }}
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+          >
+            <option value="all">All types</option>
+            <option value="property">Property</option>
+            <option value="land">Land</option>
+          </select>
+          <input
+            value={locationFilter}
+            onChange={(e) => {
+              setLocationFilter(e.target.value);
+              setPage(1);
+            }}
+            placeholder="Filter by location"
+            className="rounded-lg border border-border bg-background px-3 py-2 text-sm sm:col-span-2"
+          />
+        </div>
+      </Card>
 
       {isLoading ? (
         <p className="text-sm text-muted">Loading assets…</p>
@@ -62,8 +127,8 @@ export default function AssetsPage() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
-          {assets.map((a) => (
-            <Link key={a.id} href={`/assets/${a.id}`} className="group block">
+          {paginated.map((a) => (
+            <div key={a.id} className="group block">
               <Card className="h-full p-0 transition duration-200 group-hover:border-main-blue/25 group-hover:shadow-card-hover">
                 <CardContent className="flex flex-col gap-4 p-6">
                   <div className="flex items-start justify-between gap-3">
@@ -81,10 +146,25 @@ export default function AssetsPage() {
                         </p>
                       ) : null}
                     </div>
-                    <ChevronRight
-                      className="mt-1 h-5 w-5 shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-main-blue"
-                      strokeWidth={1.75}
-                    />
+                    <div className="flex items-center gap-2">
+                      <Link href={`/assets/${a.id}`}>
+                        <ChevronRight
+                          className="mt-1 h-5 w-5 shrink-0 text-muted transition group-hover:translate-x-0.5 group-hover:text-main-blue"
+                          strokeWidth={1.75}
+                        />
+                      </Link>
+                      <RowActions
+                        onView={() => (window.location.href = `/assets/${a.id}`)}
+                        onEdit={() => toast.info("Edit asset form can be added in this screen")}
+                        onDelete={() =>
+                          toast.promise(deleteMutation.mutateAsync(a.id), {
+                            loading: "Deleting asset...",
+                            success: "Asset deleted successfully",
+                            error: "Error deleting asset",
+                          })
+                        }
+                      />
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-3 border-t border-border pt-4 text-sm">
                     <div>
@@ -111,10 +191,36 @@ export default function AssetsPage() {
                   </div>
                 </CardContent>
               </Card>
-            </Link>
+            </div>
           ))}
         </div>
       )}
+      <div className="flex items-center justify-between text-sm text-muted">
+        <p>
+          Showing {paginated.length} of {filtered.length} assets
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className="rounded-lg border border-border px-3 py-1.5 disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span>
+            {page} / {pageCount}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            disabled={page >= pageCount}
+            className="rounded-lg border border-border px-3 py-1.5 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

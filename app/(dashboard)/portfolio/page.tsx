@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { Landmark, PieChart, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useWorkspace } from "@/contexts/workspace-context";
 import { api } from "@/lib/api";
 import { formatCompactMoney, formatPercent, monthRangeLastN } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
@@ -18,6 +19,7 @@ const GrowthChart = dynamic(
 );
 
 export default function PortfolioPage() {
+  const { workspace } = useWorkspace();
   const { data: assets } = useQuery({
     queryKey: queryKeys.assets,
     queryFn: () => api.listAssets(),
@@ -50,6 +52,17 @@ export default function PortfolioPage() {
   const last = series[series.length - 1]?.income ?? 0;
   const prev = series[series.length - 2]?.income ?? 0;
   const mom = prev > 0 ? (last - prev) / prev : last > 0 ? 1 : 0;
+
+  if (workspace !== "portfolio") {
+    return (
+      <Card className="p-8">
+        <h1 className="text-2xl font-semibold">Portfolio Dashboard</h1>
+        <p className="mt-2 text-sm text-muted">
+          Switch to the Portfolio workspace to see invested capital, value trend, and growth.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-8">

@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { api, getErrorMessage } from "@/lib/api";
@@ -37,9 +38,14 @@ export function AddAssetModal({
       setLocation("");
       setPurchasePrice("");
       setError(null);
+      toast.success("Asset created successfully");
       onClose();
     },
-    onError: (e: unknown) => setError(getErrorMessage(e)),
+    onError: (e: unknown) => {
+      const msg = getErrorMessage(e);
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   return (
@@ -134,9 +140,14 @@ export function AddTenantModal({
       setName("");
       setPhone("");
       setError(null);
+      toast.success("Tenant added successfully");
       onClose();
     },
-    onError: (e: unknown) => setError(getErrorMessage(e)),
+    onError: (e: unknown) => {
+      const msg = getErrorMessage(e);
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   return (
@@ -224,9 +235,14 @@ export function RecordPaymentModal({
       setAmount("");
       setMethod("");
       setError(null);
+      toast.success("Payment recorded");
       onClose();
     },
-    onError: (e: unknown) => setError(getErrorMessage(e)),
+    onError: (e: unknown) => {
+      const msg = getErrorMessage(e);
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   return (

@@ -18,6 +18,7 @@ import {
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useWorkspace } from "@/contexts/workspace-context";
 import {
   AddAssetModal,
   AddTenantModal,
@@ -47,6 +48,7 @@ const IncomeChart = dynamic(
 );
 
 export default function DashboardPage() {
+  const { workspace } = useWorkspace();
   const month = currentMonth();
   const [assetOpen, setAssetOpen] = useState(false);
   const [tenantOpen, setTenantOpen] = useState(false);
@@ -82,6 +84,17 @@ export default function DashboardPage() {
   }, [assets]);
 
   const vacantCount = occupancy?.vacant ?? 0;
+
+  if (workspace !== "rental") {
+    return (
+      <Card className="p-8">
+        <h1 className="text-2xl font-semibold">Rental Dashboard</h1>
+        <p className="mt-2 text-sm text-muted">
+          Switch to the Rental workspace to see income, outstanding rent, occupancy, and alerts.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-10">

@@ -153,6 +153,26 @@ export const api = {
     return unwrap(data);
   },
 
+  async updateAsset(
+    id: string,
+    body: Partial<{
+      type: "property" | "land";
+      name: string;
+      location: string;
+      purchasePrice: string;
+      purchaseDate: string;
+      notes: string;
+    }>,
+  ) {
+    const { data } = await rawApi.patch<Ok<Asset>>(`/assets/${id}`, body);
+    return unwrap(data);
+  },
+
+  async deleteAsset(id: string) {
+    const { data } = await rawApi.delete<Ok<{ id: string }>>(`/assets/${id}`);
+    return unwrap(data);
+  },
+
   async listUnits(assetId?: string) {
     const { data } = await rawApi.get<Ok<Unit[]>>("/units", {
       params: assetId ? { assetId } : undefined,
@@ -171,6 +191,19 @@ export const api = {
     return unwrap(data);
   },
 
+  async updateUnit(
+    id: string,
+    body: Partial<{ name: string; type: Unit["type"]; rentAmount: string; status: Unit["status"] }>,
+  ) {
+    const { data } = await rawApi.patch<Ok<Unit>>(`/units/${id}`, body);
+    return unwrap(data);
+  },
+
+  async deleteUnit(id: string) {
+    const { data } = await rawApi.delete<Ok<{ deleted: boolean }>>(`/units/${id}`);
+    return unwrap(data);
+  },
+
   async listTenants() {
     const { data } = await rawApi.get<Ok<Tenant[]>>("/tenants");
     return unwrap(data);
@@ -178,6 +211,16 @@ export const api = {
 
   async createTenant(body: { name: string; phone?: string; idNumber?: string }) {
     const { data } = await rawApi.post<Ok<Tenant>>("/tenants", body);
+    return unwrap(data);
+  },
+
+  async updateTenant(id: string, body: Partial<{ name: string; phone: string; idNumber: string }>) {
+    const { data } = await rawApi.patch<Ok<Tenant>>(`/tenants/${id}`, body);
+    return unwrap(data);
+  },
+
+  async deleteTenant(id: string) {
+    const { data } = await rawApi.delete<Ok<{ deleted: boolean }>>(`/tenants/${id}`);
     return unwrap(data);
   },
 
@@ -208,6 +251,19 @@ export const api = {
     return unwrap(data);
   },
 
+  async updateLease(
+    id: string,
+    body: Partial<{ startDate: string; endDate: string | null; rentAmountAtTime: string; tenantId: string | null }>,
+  ) {
+    const { data } = await rawApi.patch<Ok<Lease>>(`/leases/${id}`, body);
+    return unwrap(data);
+  },
+
+  async endLease(id: string, endDate: string) {
+    const { data } = await rawApi.post<Ok<Lease>>(`/leases/${id}/end`, { endDate });
+    return unwrap(data);
+  },
+
   async recordPayment(body: {
     leaseId: string;
     amount: string;
@@ -216,6 +272,19 @@ export const api = {
     status?: "paid" | "pending" | "failed";
   }) {
     const { data } = await rawApi.post<Ok<Payment>>("/payments", body);
+    return unwrap(data);
+  },
+
+  async updatePayment(
+    id: string,
+    body: Partial<{ amount: string; month: string; method: string | null; status: "paid" | "pending" | "failed" }>,
+  ) {
+    const { data } = await rawApi.patch<Ok<Payment>>(`/payments/${id}`, body);
+    return unwrap(data);
+  },
+
+  async deletePayment(id: string) {
+    const { data } = await rawApi.delete<Ok<{ deleted: boolean }>>(`/payments/${id}`);
     return unwrap(data);
   },
 

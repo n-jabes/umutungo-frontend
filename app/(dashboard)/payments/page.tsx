@@ -1,10 +1,11 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CalendarRange, Filter, Receipt } from "lucide-react";
 import { RecordPaymentModal } from "@/components/dashboard/quick-dialogs";
+import { RowActions } from "@/components/ui/row-actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { api, getErrorMessage } from "@/lib/api";
@@ -17,13 +18,16 @@ import {
 } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import type { Payment } from "@/lib/types";
+import { toast } from "sonner";
 
 type FilterKey = "all" | "paid" | "unpaid" | "partial";
 
 function PaymentsInner() {
+  const qc = useQueryClient();
   const searchParams = useSearchParams();
   const leaseFromUrl = searchParams.get("lease");
   const [filter, setFilter] = useState<FilterKey>("all");
+  const [page, setPage] = useState(1);
   const [recordOpen, setRecordOpen] = useState(!!leaseFromUrl);
 
   const initialRange = useMemo(() => monthRangeLastN(12), []);
@@ -80,6 +84,32 @@ function PaymentsInner() {
       return true;
     });
   }, [rows, filter, rentByLease]);
+  const pageSize = 10;
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const deletePaymentMutation = useMutation({
+    mutationFn: (id: string) => api.deletePayment(id),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.paymentSummaryRange(appliedFrom, appliedTo) });
+      await qc.invalidateQueries({ queryKey: queryKeys.paymentSummary(currentMonth()) });
+      await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
+      await qc.invalidateQueries({ queryKey: queryKeys.outstanding(currentMonth()) });
+      toast.success("Payment deleted");
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+  const updatePaymentMutation = useMutation({
+    mutationFn: ({ id, status, method }: { id: string; status?: "paid" | "pending" | "failed"; method?: string }) =>
+      api.updatePayment(id, { status, method }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.paymentSummaryRange(appliedFrom, appliedTo) });
+      await qc.invalidateQueries({ queryKey: queryKeys.paymentSummary(currentMonth()) });
+      await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
+      await qc.invalidateQueries({ queryKey: queryKeys.outstanding(currentMonth()) });
+      toast.success("Payment updated");
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
 
   function applyRange() {
     setRangeError(null);
@@ -231,7 +261,7 @@ function PaymentsInner() {
         </span>
       </Card>
 
-      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-card">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-border bg-muted-bg/50 text-xs font-semibold uppercase tracking-wide text-muted">
             <tr>
@@ -241,17 +271,18 @@ function PaymentsInner() {
               <th className="hidden px-6 py-3 md:table-cell">Method</th>
               <th className="px-6 py-3">Lease</th>
               <th className="px-6 py-3">Status</th>
+              <th className="px-6 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-10 text-center text-sm text-muted">
+                <td colSpan={7} className="px-6 py-10 text-center text-sm text-muted">
                   Loading payment history…
                 </td>
               </tr>
-            ) : filtered.length ? (
-              filtered.map((p) => (
+            ) : paginated.length ? (
+              paginated.map((p) => (
                 <tr key={p.id} className="transition hover:bg-muted-bg/30">
                   <td className="px-6 py-4 text-muted">
                     {new Date(p.paidAt).toLocaleString(undefined, {
@@ -273,17 +304,73 @@ function PaymentsInner() {
                       {p.status}
                     </span>
                   </td>
+                  <td className="px-6 py-4 text-right">
+                    <RowActions
+                      onView={() => (window.location.href = `/leases#${p.leaseId}`)}
+                      onEdit={() => {
+                        const nextStatus = window.prompt(
+                          "Set payment status: paid | pending | failed",
+                          p.status,
+                        );
+                        if (!nextStatus) return;
+                        const normalized = nextStatus.trim().toLowerCase();
+                        if (normalized !== "paid" && normalized !== "pending" && normalized !== "failed") {
+                          toast.error("Status must be paid, pending, or failed");
+                          return;
+                        }
+                        const nextMethod = window.prompt("Edit method (optional)", p.method ?? "");
+                        updatePaymentMutation.mutate({
+                          id: p.id,
+                          status: normalized as "paid" | "pending" | "failed",
+                          method: nextMethod?.trim() || undefined,
+                        });
+                      }}
+                      onDelete={() =>
+                        toast.promise(deletePaymentMutation.mutateAsync(p.id), {
+                          loading: "Deleting payment...",
+                          success: "Payment deleted",
+                          error: "Failed to delete payment",
+                        })
+                      }
+                    />
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={6} className="px-6 py-10 text-center text-sm text-muted">
+                <td colSpan={7} className="px-6 py-10 text-center text-sm text-muted">
                   No payments match this filter in the selected range.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
+      </div>
+      <div className="flex items-center justify-between text-sm text-muted">
+        <p>
+          Showing {paginated.length} of {filtered.length} payments
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={page <= 1}
+            className="rounded-lg border border-border px-3 py-1.5 disabled:opacity-50"
+          >
+            Previous
+          </button>
+          <span>
+            {page} / {pageCount}
+          </span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+            disabled={page >= pageCount}
+            className="rounded-lg border border-border px-3 py-1.5 disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
       </div>
 
       <RecordPaymentModal
