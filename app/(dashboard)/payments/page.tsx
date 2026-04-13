@@ -141,22 +141,22 @@ function PaymentsInner() {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="w-full min-w-0 max-w-full space-y-5 sm:space-y-8">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted">Ledger</p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Payments</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Payments</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
             One request loads all payments in your chosen billing-month range (up to 36 months).
             Adjust the range below, then apply.
           </p>
         </div>
-        <Button type="button" className="self-start" onClick={() => setRecordOpen(true)}>
+        <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={() => setRecordOpen(true)}>
           Record payment
         </Button>
       </div>
 
-      <Card className="space-y-4 border-border p-4">
+      <Card className="space-y-4 border-border p-3 sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
             <CalendarRange className="h-3.5 w-3.5" strokeWidth={1.75} />
@@ -237,74 +237,144 @@ function PaymentsInner() {
         ) : null}
       </Card>
 
-      <Card className="flex flex-wrap items-center gap-2 border-border p-4">
-        <span className="mr-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
-          <Filter className="h-3.5 w-3.5" strokeWidth={1.75} />
-          Status
-        </span>
-        {filters.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            onClick={() => setFilter(f.key)}
-            className={
-              filter === f.key
-                ? "rounded-lg bg-main-blue px-3 py-1.5 text-xs font-medium text-white"
-                : "rounded-lg px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-muted-bg hover:text-foreground"
-            }
-          >
-            {f.label}
-          </button>
-        ))}
-        <span className="ml-auto text-xs text-muted">
-          Default month for new entries: {currentMonth()}
-        </span>
+      <Card className="border-border p-3 sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+            <Filter className="h-3.5 w-3.5" strokeWidth={1.75} />
+            Status
+          </span>
+          <div className="-mx-1 flex gap-1.5 overflow-x-auto pb-1 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:pb-0">
+            {filters.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFilter(f.key)}
+                className={
+                  filter === f.key
+                    ? "shrink-0 rounded-lg bg-main-blue px-3 py-2 text-xs font-medium text-white"
+                    : "shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-muted transition hover:bg-muted-bg hover:text-foreground"
+                }
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-muted sm:text-right">
+          Default month for new entries: <span className="font-medium text-foreground">{currentMonth()}</span>
+        </p>
       </Card>
 
-      <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-card">
-        <table className="w-full text-left text-sm">
+      {/* ── Mobile card list ── */}
+      {isLoading ? (
+        <p className="text-sm text-muted sm:hidden">Loading payment history…</p>
+      ) : paginated.length === 0 ? (
+        <Card className="border-dashed p-8 text-center text-sm text-muted sm:hidden">
+          No payments match this filter in the selected range.
+        </Card>
+      ) : (
+        <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card shadow-sm sm:hidden">
+          {paginated.map((p) => (
+            <div key={p.id} className="flex items-start justify-between gap-3 p-4">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold tabular-nums-fin text-main-green">{formatMoney(p.amount)}</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-muted-bg px-2 py-0.5 text-xs font-medium capitalize text-foreground">
+                    <Receipt className="h-3 w-3 shrink-0" strokeWidth={1.75} />
+                    {p.status}
+                  </span>
+                </div>
+                <p className="mt-1 truncate text-xs text-muted">{p.leaseLabel}</p>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
+                  <span className="tabular-nums-fin font-medium text-foreground">{p.month}</span>
+                  {p.method ? <span>{p.method}</span> : null}
+                  <span>
+                    {new Date(p.paidAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                  </span>
+                </div>
+              </div>
+              <div className="shrink-0">
+                <RowActions
+                  onView={() => (window.location.href = `/leases#${p.leaseId}`)}
+                  onEdit={() => {
+                    const nextStatus = window.prompt(
+                      "Set payment status: paid | pending | failed",
+                      p.status,
+                    );
+                    if (!nextStatus) return;
+                    const normalized = nextStatus.trim().toLowerCase();
+                    if (normalized !== "paid" && normalized !== "pending" && normalized !== "failed") {
+                      toast.error("Status must be paid, pending, or failed");
+                      return;
+                    }
+                    const nextMethod = window.prompt("Edit method (optional)", p.method ?? "");
+                    updatePaymentMutation.mutate({
+                      id: p.id,
+                      status: normalized as "paid" | "pending" | "failed",
+                      method: nextMethod?.trim() || undefined,
+                    });
+                  }}
+                  onDelete={() =>
+                    toast.promise(deletePaymentMutation.mutateAsync(p.id), {
+                      loading: "Deleting payment...",
+                      success: "Payment deleted",
+                      error: "Failed to delete payment",
+                    })
+                  }
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Desktop table ── */}
+      <div className="hidden w-full overflow-x-auto rounded-xl border border-border bg-card shadow-sm sm:block">
+        <table className="w-full min-w-[720px] border-collapse text-left text-sm">
           <thead className="border-b border-border bg-muted-bg/50 text-xs font-semibold uppercase tracking-wide text-muted">
             <tr>
-              <th className="px-6 py-3">Paid</th>
-              <th className="px-6 py-3">Month</th>
-              <th className="px-6 py-3">Amount</th>
-              <th className="hidden px-6 py-3 md:table-cell">Method</th>
-              <th className="px-6 py-3">Lease</th>
-              <th className="px-6 py-3">Status</th>
-              <th className="px-6 py-3 text-right">Actions</th>
+              <th className="whitespace-nowrap px-4 py-3">Paid</th>
+              <th className="whitespace-nowrap px-4 py-3">Month</th>
+              <th className="whitespace-nowrap px-4 py-3">Amount</th>
+              <th className="whitespace-nowrap px-4 py-3">Method</th>
+              <th className="whitespace-nowrap px-4 py-3">Lease</th>
+              <th className="whitespace-nowrap px-4 py-3">Status</th>
+              <th className="whitespace-nowrap px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="px-6 py-10 text-center text-sm text-muted">
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted">
                   Loading payment history…
                 </td>
               </tr>
             ) : paginated.length ? (
               paginated.map((p) => (
                 <tr key={p.id} className="transition hover:bg-muted-bg/30">
-                  <td className="px-6 py-4 text-muted">
+                  <td className="whitespace-nowrap px-4 py-3.5 text-muted">
                     {new Date(p.paidAt).toLocaleString(undefined, {
                       dateStyle: "medium",
                       timeStyle: "short",
                     })}
                   </td>
-                  <td className="px-6 py-4 font-medium tabular-nums-fin text-foreground">{p.month}</td>
-                  <td className="px-6 py-4 font-semibold tabular-nums-fin text-main-green">
+                  <td className="whitespace-nowrap px-4 py-3.5 font-medium tabular-nums-fin text-foreground">
+                    {p.month}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3.5 font-semibold tabular-nums-fin text-main-green">
                     {formatMoney(p.amount)}
                   </td>
-                  <td className="hidden px-6 py-4 text-muted md:table-cell">
+                  <td className="whitespace-nowrap px-4 py-3.5 text-muted">
                     {p.method ?? "—"}
                   </td>
-                  <td className="max-w-[200px] truncate px-6 py-4 text-muted">{p.leaseLabel}</td>
-                  <td className="px-6 py-4">
+                  <td className="whitespace-nowrap px-4 py-3.5 text-muted">{p.leaseLabel}</td>
+                  <td className="whitespace-nowrap px-4 py-3.5">
                     <span className="inline-flex items-center gap-1 rounded-full bg-muted-bg px-2 py-0.5 text-xs font-medium capitalize text-foreground">
-                      <Receipt className="h-3 w-3" strokeWidth={1.75} />
+                      <Receipt className="h-3 w-3 shrink-0" strokeWidth={1.75} />
                       {p.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="whitespace-nowrap px-4 py-3.5 text-right">
                     <RowActions
                       onView={() => (window.location.href = `/leases#${p.leaseId}`)}
                       onEdit={() => {
@@ -338,7 +408,7 @@ function PaymentsInner() {
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="px-6 py-10 text-center text-sm text-muted">
+                <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted">
                   No payments match this filter in the selected range.
                 </td>
               </tr>
@@ -346,11 +416,11 @@ function PaymentsInner() {
           </tbody>
         </table>
       </div>
-      <div className="flex items-center justify-between text-sm text-muted">
+      <div className="flex flex-col gap-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
         <p>
           Showing {paginated.length} of {filtered.length} payments
         </p>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={() => setPage((p) => Math.max(1, p - 1))}
