@@ -18,6 +18,10 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Umutungo — Asset & lease intelligence",
   description: "Manage your assets. Grow your wealth.",
+  icons: {
+    icon: "/umutungo-icon.svg",
+    shortcut: "/umutungo-icon.svg",
+  },
 };
 
 export default function RootLayout({

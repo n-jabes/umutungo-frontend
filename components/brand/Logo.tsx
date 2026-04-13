@@ -58,7 +58,7 @@ export function Logo({ className, showTagline = true, size = "md" }: LogoProps) 
            * Bottom outer corners : Q bezier r = 2
            */}
           <path
-            d="M 7 11.5 Q 7 8 10.5 8 Q 14 8 14 11.5 L 14 26 Q 20 29 26 26 L 26 11.5 Q 26 8 29.5 8 Q 33 8 33 11.5 L 33 30 Q 33 32 31 32 L 9 32 Q 7 32 7 30 Z"
+            d="M 7 11.5 Q 7 8 10.5 8 Q 14 8 14 11.5 L 14 21 C 14 26 26 26 26 21 L 26 11.5 Q 26 8 29.5 8 Q 33 8 33 11.5 L 33 25 Q 33 32 26 32 L 14 32 Q 7 32 7 25 Z"
             fill="white"
           />
         </svg>
