@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, FileText, Plus } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { EditLeaseModal } from "@/components/dashboard/quick-dialogs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RowActions } from "@/components/ui/row-actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,6 +14,7 @@ import { api, getErrorMessage } from "@/lib/api";
 import { filterMoneyInput, isValidMoneyAmount, normalizeMoneyInput } from "@/lib/decimal-input";
 import { formatMoney } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
+import type { Lease } from "@/lib/types";
 
 export default function LeasesPage() {
   const qc = useQueryClient();
@@ -22,6 +25,8 @@ export default function LeasesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "ended">("all");
   const [page, setPage] = useState(1);
+  const [editLease, setEditLease] = useState<Lease | null>(null);
+  const [endLease, setEndLease] = useState<Lease | null>(null);
 
   const sorted = useMemo(
     () =>
@@ -48,12 +53,27 @@ export default function LeasesPage() {
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       toast.success("Lease ended successfully");
+      setEndLease(null);
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
   return (
     <div className="space-y-8">
+      <EditLeaseModal lease={editLease} onClose={() => setEditLease(null)} />
+      <ConfirmDialog
+        open={!!endLease}
+        onClose={() => setEndLease(null)}
+        onConfirm={() =>
+          endLease &&
+          endMutation.mutate({ id: endLease.id, endDate: new Date().toISOString().slice(0, 10) })
+        }
+        title="End lease"
+        description={`End the lease for "${endLease?.tenant?.name ?? "Unassigned tenant"}" on ${endLease?.unit?.asset.name ?? "this asset"}${endLease?.unit?.name ? ` · ${endLease.unit.name}` : ""}?`}
+        detail="The contract will be closed with today's date as the end date."
+        confirmLabel="End lease"
+        isPending={endMutation.isPending}
+      />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted">Contracts</p>
@@ -124,13 +144,13 @@ export default function LeasesPage() {
                 <div className="flex items-start gap-2 text-right">
                   <RowActions
                     onView={() => (window.location.href = `/leases#${l.id}`)}
-                    onEdit={() => toast.info("Lease edit can be implemented with a dedicated form modal")}
+                    onEdit={() => setEditLease(l)}
                     onDelete={() => {
                       if (l.status !== "active") {
                         toast.info("Lease already ended");
                         return;
                       }
-                      endMutation.mutate({ id: l.id, endDate: new Date().toISOString().slice(0, 10) });
+                      setEndLease(l);
                     }}
                     deleteLabel="End lease"
                   />

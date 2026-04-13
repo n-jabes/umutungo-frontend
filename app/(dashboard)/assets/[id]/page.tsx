@@ -16,9 +16,11 @@ import {
   Plus,
   Sparkles,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AddUnitModal } from "@/components/assets/add-unit-modal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Modal } from "@/components/ui/modal";
 import { RowActions } from "@/components/ui/row-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +42,9 @@ export default function AssetDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const [unitModal, setUnitModal] = useState<null | "custom" | "whole">(null);
+  const [editUnit, setEditUnit] = useState<Unit | null>(null);
+  const [deleteUnit, setDeleteUnit] = useState<Unit | null>(null);
+
   const deleteUnitMutation = useMutation({
     mutationFn: (unitId: string) => api.deleteUnit(unitId),
     onSuccess: async () => {
@@ -47,13 +52,17 @@ export default function AssetDetailPage() {
       await qc.invalidateQueries({ queryKey: queryKeys.units() });
       await qc.invalidateQueries({ queryKey: queryKeys.occupancy });
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
+      await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: queryKeys.assets });
+      await qc.invalidateQueries({ queryKey: ["payments"] });
       toast.success("Unit deleted");
+      setDeleteUnit(null);
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
   const updateUnitMutation = useMutation({
-    mutationFn: ({ unitId, name }: { unitId: string; name: string }) => api.updateUnit(unitId, { name }),
+    mutationFn: ({ unitId, name, rentAmount, status }: { unitId: string; name: string; rentAmount?: string; status?: Unit["status"] }) =>
+      api.updateUnit(unitId, { name, rentAmount, status }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.units(id) });
       await qc.invalidateQueries({ queryKey: queryKeys.units() });
@@ -158,6 +167,16 @@ export default function AssetDetailPage() {
         assetType={asset.type}
         preset={unitModal === "whole" ? "whole" : "custom"}
       />
+      <EditUnitModal unit={editUnit} onClose={() => setEditUnit(null)} mutation={updateUnitMutation} />
+      <ConfirmDialog
+        open={!!deleteUnit}
+        onClose={() => setDeleteUnit(null)}
+        onConfirm={() => deleteUnit && deleteUnitMutation.mutate(deleteUnit.id)}
+        title="Delete unit"
+        description={`Delete "${deleteUnit?.name ?? "this unit"}"?`}
+        detail="All active leases and payment records tied to this unit will also be permanently deleted."
+        isPending={deleteUnitMutation.isPending}
+      />
       <div>
         <Link
           href="/assets"
@@ -233,12 +252,12 @@ export default function AssetDetailPage() {
                 value={formatCompactMoney(monthlyRentPotential)}
               />
             </CardContent>
-            {(units?.length ?? 0) === 0 ? (
-              <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
-                <Button type="button" size="sm" onClick={() => setUnitModal("custom")}>
-                  <Plus className="h-4 w-4" strokeWidth={1.75} />
-                  Add unit
-                </Button>
+            <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
+              <Button type="button" size="sm" onClick={() => setUnitModal("custom")}>
+                <Plus className="h-4 w-4" strokeWidth={1.75} />
+                Add unit
+              </Button>
+              {(units?.length ?? 0) === 0 ? (
                 <Button
                   type="button"
                   size="sm"
@@ -248,8 +267,8 @@ export default function AssetDetailPage() {
                   <Home className="h-4 w-4" strokeWidth={1.75} />
                   {asset.type === "land" ? "One rentable parcel" : "Single unit (whole property)"}
                 </Button>
-              </div>
-            ) : null}
+              ) : null}
+            </div>
           </Card>
           <Card className="p-6">
             <CardHeader className="p-0">
@@ -315,20 +334,8 @@ export default function AssetDetailPage() {
                     </p>
                     <RowActions
                       onView={() => toast.info(`Unit: ${u.name ?? "Unnamed unit"}`)}
-                      onEdit={() => {
-                        const nextName = window.prompt("Edit unit name", u.name ?? "");
-                        if (nextName !== null) {
-                          const trimmed = nextName.trim();
-                          updateUnitMutation.mutate({ unitId: u.id, name: trimmed });
-                        }
-                      }}
-                      onDelete={() =>
-                        toast.promise(deleteUnitMutation.mutateAsync(u.id), {
-                          loading: "Deleting unit...",
-                          success: "Unit deleted",
-                          error: "Failed to delete unit",
-                        })
-                      }
+                      onEdit={() => setEditUnit(u)}
+                      onDelete={() => setDeleteUnit(u)}
                     />
                   </div>
                 </li>
@@ -446,5 +453,97 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-medium text-muted">{label}</p>
       <p className="mt-1 text-lg font-semibold tabular-nums-fin">{value}</p>
     </div>
+  );
+}
+
+function EditUnitModal({
+  unit,
+  onClose,
+  mutation,
+}: {
+  unit: Unit | null;
+  onClose: () => void;
+  mutation: {
+    mutate: (args: { unitId: string; name: string; rentAmount?: string; status?: Unit["status"] }) => void;
+    isPending: boolean;
+  };
+}) {
+  const [name, setName] = useState("");
+  const [rentAmount, setRentAmount] = useState("");
+  const [status, setStatus] = useState<Unit["status"]>("vacant");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!unit) return;
+    setName(unit.name ?? "");
+    setRentAmount(unit.rentAmount ?? "");
+    setStatus(unit.status);
+    setError(null);
+  }, [unit]);
+
+  return (
+    <Modal open={!!unit} onClose={onClose} title="Edit unit" description="Update this rentable space.">
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setError(null);
+          if (!unit) return;
+          mutation.mutate({
+            unitId: unit.id,
+            name: name.trim() || (unit.name ?? ""),
+            rentAmount: rentAmount.trim() || undefined,
+            status,
+          });
+          onClose();
+        }}
+      >
+        <div>
+          <label className="text-xs font-medium text-muted">Unit name</label>
+          <input
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="e.g. Unit 2A"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Type (readonly)</label>
+          <input
+            readOnly
+            className="mt-1 w-full rounded-lg border border-border bg-muted-bg px-3 py-2.5 text-sm capitalize text-muted outline-none"
+            value={unit?.type === "whole" ? "Whole property / parcel" : (unit?.type ?? "—")}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Monthly rent</label>
+          <input
+            inputMode="decimal"
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={rentAmount}
+            onChange={(e) => setRentAmount(e.target.value)}
+            placeholder="0"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Status</label>
+          <select
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as Unit["status"])}
+          >
+            <option value="vacant">Vacant</option>
+            <option value="occupied">Occupied</option>
+          </select>
+        </div>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
   );
 }

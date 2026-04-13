@@ -5,12 +5,14 @@ import Link from "next/link";
 import { Phone, User, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AddTenantModal } from "@/components/dashboard/quick-dialogs";
+import { AddTenantModal, EditTenantModal } from "@/components/dashboard/quick-dialogs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RowActions } from "@/components/ui/row-actions";
 import { Card } from "@/components/ui/card";
 import { api, getErrorMessage } from "@/lib/api";
 import { currentMonth } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
+import type { Tenant } from "@/lib/types";
 
 export default function TenantsPage() {
   const qc = useQueryClient();
@@ -18,6 +20,9 @@ export default function TenantsPage() {
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
   const [page, setPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
+  const [editTenant, setEditTenant] = useState<Tenant | null>(null);
+  const [deleteTenant, setDeleteTenant] = useState<Tenant | null>(null);
+
   const { data: tenants, isLoading } = useQuery({
     queryKey: queryKeys.tenants,
     queryFn: () => api.listTenants(),
@@ -57,14 +62,6 @@ export default function TenantsPage() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, name }: { id: string; name: string }) => api.updateTenant(id, { name }),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: queryKeys.tenants });
-      toast.success("Tenant updated successfully");
-    },
-    onError: (e) => toast.error(getErrorMessage(e)),
-  });
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteTenant(id),
     onSuccess: async () => {
@@ -72,6 +69,8 @@ export default function TenantsPage() {
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: queryKeys.outstanding(month) });
+      toast.success("Tenant deleted");
+      setDeleteTenant(null);
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
@@ -79,6 +78,16 @@ export default function TenantsPage() {
   return (
     <div className="w-full min-w-0 max-w-full space-y-5 sm:space-y-8">
       <AddTenantModal open={addOpen} onClose={() => setAddOpen(false)} />
+      <EditTenantModal tenant={editTenant} onClose={() => setEditTenant(null)} />
+      <ConfirmDialog
+        open={!!deleteTenant}
+        onClose={() => setDeleteTenant(null)}
+        onConfirm={() => deleteTenant && deleteMutation.mutate(deleteTenant.id)}
+        title="Delete tenant"
+        description={`Delete "${deleteTenant?.name}"? This permanently removes the tenant and any associated leases and payment history.`}
+        isPending={deleteMutation.isPending}
+      />
+
       <div className="min-w-0">
         <p className="text-xs font-semibold uppercase tracking-wider text-muted">People</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Tenants</h1>
@@ -175,19 +184,8 @@ export default function TenantsPage() {
                     ) : null}
                     <RowActions
                       onView={() => (window.location.href = lease ? `/leases#${lease.id}` : "/tenants")}
-                      onEdit={() => {
-                        const nextName = window.prompt("Edit tenant name", t.name);
-                        if (nextName && nextName.trim()) {
-                          updateMutation.mutate({ id: t.id, name: nextName.trim() });
-                        }
-                      }}
-                      onDelete={() =>
-                        toast.promise(deleteMutation.mutateAsync(t.id), {
-                          loading: "Deleting tenant...",
-                          success: "Tenant deleted",
-                          error: "Failed to delete tenant",
-                        })
-                      }
+                      onEdit={() => setEditTenant(t)}
+                      onDelete={() => setDeleteTenant(t)}
                     />
                   </div>
                 </div>
@@ -269,19 +267,8 @@ export default function TenantsPage() {
                           ) : null}
                           <RowActions
                             onView={() => (window.location.href = lease ? `/leases#${lease.id}` : "/tenants")}
-                            onEdit={() => {
-                              const nextName = window.prompt("Edit tenant name", t.name);
-                              if (nextName && nextName.trim()) {
-                                updateMutation.mutate({ id: t.id, name: nextName.trim() });
-                              }
-                            }}
-                            onDelete={() =>
-                              toast.promise(deleteMutation.mutateAsync(t.id), {
-                                loading: "Deleting tenant...",
-                                success: "Tenant deleted",
-                                error: "Failed to delete tenant",
-                              })
-                            }
+                            onEdit={() => setEditTenant(t)}
+                            onDelete={() => setDeleteTenant(t)}
                           />
                         </div>
                       </td>

@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { api, getErrorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { currentMonth } from "@/lib/format";
+import { currentMonth, formatMoney } from "@/lib/format";
+import type { Lease, Payment, Tenant } from "@/lib/types";
 
 export function AddAssetModal({
   open,
@@ -321,6 +322,314 @@ export function RecordPaymentModal({
           </Button>
           <Button type="submit" variant="primary" disabled={mutation.isPending}>
             {mutation.isPending ? "Recording…" : "Record payment"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   EditTenantModal
+───────────────────────────────────────────────────────────────── */
+export function EditTenantModal({
+  tenant,
+  onClose,
+}: {
+  tenant: Tenant | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!tenant) return;
+    setName(tenant.name);
+    setPhone(tenant.phone ?? "");
+    setError(null);
+  }, [tenant]);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.updateTenant(tenant!.id, {
+        name: name.trim(),
+        phone: phone.trim() || undefined,
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.tenants });
+      await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
+      toast.success("Tenant updated");
+      onClose();
+    },
+    onError: (e: unknown) => setError(getErrorMessage(e)),
+  });
+
+  return (
+    <Modal open={!!tenant} onClose={onClose} title="Edit tenant" description="Update contact details for this tenant.">
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setError(null);
+          mutation.mutate();
+        }}
+      >
+        <div>
+          <label className="text-xs font-medium text-muted">Full name</label>
+          <input
+            required
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Phone</label>
+          <input
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+250…"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Tenant ID (readonly)</label>
+          <input
+            readOnly
+            className="mt-1 w-full rounded-lg border border-border bg-muted-bg px-3 py-2.5 text-xs text-muted outline-none"
+            value={tenant?.id ?? ""}
+          />
+        </div>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   EditPaymentModal
+───────────────────────────────────────────────────────────────── */
+export function EditPaymentModal({
+  payment,
+  onClose,
+}: {
+  payment: (Payment & { leaseLabel?: string }) | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [amount, setAmount] = useState("");
+  const [status, setStatus] = useState<"paid" | "pending" | "failed">("paid");
+  const [method, setMethod] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!payment) return;
+    setAmount(String(payment.amount));
+    setStatus((payment.status ?? "paid") as "paid" | "pending" | "failed");
+    setMethod(payment.method ?? "");
+    setError(null);
+  }, [payment]);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.updatePayment(payment!.id, {
+        amount: amount.trim(),
+        status,
+        method: method.trim() || undefined,
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["payments"] });
+      await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
+      await qc.invalidateQueries({ queryKey: queryKeys.outstanding(currentMonth()) });
+      toast.success("Payment updated");
+      onClose();
+    },
+    onError: (e: unknown) => setError(getErrorMessage(e)),
+  });
+
+  return (
+    <Modal open={!!payment} onClose={onClose} title="Edit payment" description="Adjust amount, status, or payment method.">
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setError(null);
+          mutation.mutate();
+        }}
+      >
+        <div className="grid gap-3 rounded-xl border border-border bg-muted-bg/50 p-4 sm:grid-cols-2">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Lease</p>
+            <p className="mt-0.5 truncate text-sm text-foreground">{payment?.leaseLabel ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Billing month</p>
+            <p className="mt-0.5 text-sm text-foreground">{payment?.month ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Recorded at</p>
+            <p className="mt-0.5 text-sm text-foreground">
+              {payment ? new Date(payment.paidAt).toLocaleDateString(undefined, { dateStyle: "medium" }) : "—"}
+            </p>
+          </div>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Amount</label>
+          <input
+            required
+            inputMode="decimal"
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Status</label>
+          <select
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as "paid" | "pending" | "failed")}
+          >
+            <option value="paid">Paid</option>
+            <option value="pending">Pending</option>
+            <option value="failed">Failed</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Method (optional)</label>
+          <input
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            placeholder="Bank, mobile money, cash…"
+          />
+        </div>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   EditLeaseModal
+───────────────────────────────────────────────────────────────── */
+export function EditLeaseModal({
+  lease,
+  onClose,
+}: {
+  lease: Lease | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [tenantId, setTenantId] = useState<string>("");
+  const [endDate, setEndDate] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: tenants } = useQuery({
+    queryKey: queryKeys.tenants,
+    queryFn: () => api.listTenants(),
+    enabled: !!lease,
+  });
+
+  useEffect(() => {
+    if (!lease) return;
+    setTenantId(lease.tenantId ?? "");
+    setEndDate(lease.endDate ? lease.endDate.slice(0, 10) : "");
+    setError(null);
+  }, [lease]);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.updateLease(lease!.id, {
+        tenantId: tenantId || null,
+        endDate: endDate || null,
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.leases });
+      await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
+      await qc.invalidateQueries({ queryKey: queryKeys.outstanding(currentMonth()) });
+      toast.success("Lease updated");
+      onClose();
+    },
+    onError: (e: unknown) => setError(getErrorMessage(e)),
+  });
+
+  return (
+    <Modal open={!!lease} onClose={onClose} title="Edit lease" description="Update tenant assignment or close this contract.">
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setError(null);
+          mutation.mutate();
+        }}
+      >
+        <div className="grid gap-3 rounded-xl border border-border bg-muted-bg/50 p-4 sm:grid-cols-2">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Unit</p>
+            <p className="mt-0.5 text-sm text-foreground">
+              {lease?.unit?.asset.name}{lease?.unit?.name ? ` · ${lease.unit.name}` : ""}
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Start date</p>
+            <p className="mt-0.5 text-sm text-foreground">{lease?.startDate.slice(0, 10)}</p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Contract rent</p>
+            <p className="mt-0.5 text-sm font-semibold text-foreground">
+              {lease ? formatMoney(lease.rentAmountAtTime) : "—"}
+              <span className="ml-1 text-xs font-normal text-muted">/ period</span>
+            </p>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Status</p>
+            <p className="mt-0.5 text-sm capitalize text-foreground">{lease?.status ?? "—"}</p>
+          </div>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Tenant</label>
+          <select
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={tenantId}
+            onChange={(e) => setTenantId(e.target.value)}
+          >
+            <option value="">Unassigned</option>
+            {(tenants ?? []).map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-[11px] text-muted">Reassign or remove the tenant linked to this contract.</p>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">End date (leave blank for open-ended)</label>
+          <input
+            type="date"
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+          />
+          <p className="mt-1 text-[11px] text-muted">Setting an end date marks the lease as ended.</p>
+        </div>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Saving…" : "Save changes"}
           </Button>
         </div>
       </form>

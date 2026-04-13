@@ -4,7 +4,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CalendarRange, Filter, Receipt } from "lucide-react";
-import { RecordPaymentModal } from "@/components/dashboard/quick-dialogs";
+import { EditPaymentModal, RecordPaymentModal } from "@/components/dashboard/quick-dialogs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RowActions } from "@/components/ui/row-actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,6 +30,8 @@ function PaymentsInner() {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [page, setPage] = useState(1);
   const [recordOpen, setRecordOpen] = useState(!!leaseFromUrl);
+  const [editPayment, setEditPayment] = useState<(Payment & { leaseLabel: string }) | null>(null);
+  const [deletePayment, setDeletePayment] = useState<(Payment & { leaseLabel: string }) | null>(null);
 
   const initialRange = useMemo(() => monthRangeLastN(12), []);
   const [appliedFrom, setAppliedFrom] = useState(initialRange.from);
@@ -95,18 +98,7 @@ function PaymentsInner() {
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: queryKeys.outstanding(currentMonth()) });
       toast.success("Payment deleted");
-    },
-    onError: (e) => toast.error(getErrorMessage(e)),
-  });
-  const updatePaymentMutation = useMutation({
-    mutationFn: ({ id, status, method }: { id: string; status?: "paid" | "pending" | "failed"; method?: string }) =>
-      api.updatePayment(id, { status, method }),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: queryKeys.paymentSummaryRange(appliedFrom, appliedTo) });
-      await qc.invalidateQueries({ queryKey: queryKeys.paymentSummary(currentMonth()) });
-      await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
-      await qc.invalidateQueries({ queryKey: queryKeys.outstanding(currentMonth()) });
-      toast.success("Payment updated");
+      setDeletePayment(null);
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
@@ -142,6 +134,16 @@ function PaymentsInner() {
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-5 sm:space-y-8">
+      <EditPaymentModal payment={editPayment} onClose={() => setEditPayment(null)} />
+      <ConfirmDialog
+        open={!!deletePayment}
+        onClose={() => setDeletePayment(null)}
+        onConfirm={() => deletePayment && deletePaymentMutation.mutate(deletePayment.id)}
+        title="Delete payment"
+        description={`Delete the ${deletePayment ? formatMoney(deletePayment.amount) : ""} payment for ${deletePayment?.leaseLabel ?? "this lease"}?`}
+        detail="The balance due on the lease will be adjusted accordingly."
+        isPending={deletePaymentMutation.isPending}
+      />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted">Ledger</p>
@@ -296,31 +298,8 @@ function PaymentsInner() {
               <div className="shrink-0">
                 <RowActions
                   onView={() => (window.location.href = `/leases#${p.leaseId}`)}
-                  onEdit={() => {
-                    const nextStatus = window.prompt(
-                      "Set payment status: paid | pending | failed",
-                      p.status,
-                    );
-                    if (!nextStatus) return;
-                    const normalized = nextStatus.trim().toLowerCase();
-                    if (normalized !== "paid" && normalized !== "pending" && normalized !== "failed") {
-                      toast.error("Status must be paid, pending, or failed");
-                      return;
-                    }
-                    const nextMethod = window.prompt("Edit method (optional)", p.method ?? "");
-                    updatePaymentMutation.mutate({
-                      id: p.id,
-                      status: normalized as "paid" | "pending" | "failed",
-                      method: nextMethod?.trim() || undefined,
-                    });
-                  }}
-                  onDelete={() =>
-                    toast.promise(deletePaymentMutation.mutateAsync(p.id), {
-                      loading: "Deleting payment...",
-                      success: "Payment deleted",
-                      error: "Failed to delete payment",
-                    })
-                  }
+                  onEdit={() => setEditPayment(p)}
+                  onDelete={() => setDeletePayment(p)}
                 />
               </div>
             </div>
@@ -377,31 +356,8 @@ function PaymentsInner() {
                   <td className="whitespace-nowrap px-4 py-3.5 text-right">
                     <RowActions
                       onView={() => (window.location.href = `/leases#${p.leaseId}`)}
-                      onEdit={() => {
-                        const nextStatus = window.prompt(
-                          "Set payment status: paid | pending | failed",
-                          p.status,
-                        );
-                        if (!nextStatus) return;
-                        const normalized = nextStatus.trim().toLowerCase();
-                        if (normalized !== "paid" && normalized !== "pending" && normalized !== "failed") {
-                          toast.error("Status must be paid, pending, or failed");
-                          return;
-                        }
-                        const nextMethod = window.prompt("Edit method (optional)", p.method ?? "");
-                        updatePaymentMutation.mutate({
-                          id: p.id,
-                          status: normalized as "paid" | "pending" | "failed",
-                          method: nextMethod?.trim() || undefined,
-                        });
-                      }}
-                      onDelete={() =>
-                        toast.promise(deletePaymentMutation.mutateAsync(p.id), {
-                          loading: "Deleting payment...",
-                          success: "Payment deleted",
-                          error: "Failed to delete payment",
-                        })
-                      }
+                      onEdit={() => setEditPayment(p)}
+                      onDelete={() => setDeletePayment(p)}
                     />
                   </td>
                 </tr>
