@@ -267,13 +267,13 @@ function PaymentsInner() {
 
       {/* ── Mobile card list ── */}
       {isLoading ? (
-        <p className="text-sm text-muted sm:hidden">Loading payment history…</p>
+        <p className="text-sm text-muted xl:hidden">Loading payment history…</p>
       ) : paginated.length === 0 ? (
-        <Card className="border-dashed p-8 text-center text-sm text-muted sm:hidden">
+        <Card className="border-dashed p-8 text-center text-sm text-muted xl:hidden">
           No payments match this filter in the selected range.
         </Card>
       ) : (
-        <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card shadow-sm sm:hidden">
+        <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card shadow-sm xl:hidden">
           {paginated.map((p) => (
             <div key={p.id} className="flex items-start justify-between gap-3 p-4">
               <div className="min-w-0 flex-1">
@@ -328,8 +328,8 @@ function PaymentsInner() {
         </div>
       )}
 
-      {/* ── Desktop table ── */}
-      <div className="hidden w-full overflow-x-auto rounded-xl border border-border bg-card shadow-sm sm:block">
+      {/* ── Full table (≥ 1280 px — enough room alongside sidebar) ── */}
+      <div className="hidden w-full overflow-x-auto rounded-xl border border-border bg-card shadow-sm xl:block">
         <table className="w-full min-w-[720px] border-collapse text-left text-sm">
           <thead className="border-b border-border bg-muted-bg/50 text-xs font-semibold uppercase tracking-wide text-muted">
             <tr>

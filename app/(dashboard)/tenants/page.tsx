@@ -123,8 +123,8 @@ export default function TenantsPage() {
         </Card>
       ) : (
         <>
-          {/* ── Mobile card list ── */}
-          <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card shadow-sm sm:hidden">
+          {/* ── Card list (< 1280 px — mobile, tablet, small desktop) ── */}
+          <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card shadow-sm xl:hidden">
             {rows.map((t) => {
               const lease = leaseByTenant.get(t.id);
               const hasBalance = lease ? dueLeaseIds.has(lease.id) : false;
@@ -195,8 +195,8 @@ export default function TenantsPage() {
             })}
           </div>
 
-          {/* ── Desktop table ── */}
-          <div className="hidden w-full overflow-x-auto rounded-xl border border-border bg-card shadow-sm sm:block">
+          {/* ── Full table (≥ 1280 px — enough room alongside sidebar) ── */}
+          <div className="hidden w-full overflow-x-auto rounded-xl border border-border bg-card shadow-sm xl:block">
             <table className="w-full min-w-[600px] border-collapse text-left text-sm">
               <thead className="border-b border-border bg-muted-bg/50 text-xs font-semibold uppercase tracking-wide text-muted">
                 <tr>
