@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   Building2,
   Calendar,
@@ -13,12 +13,15 @@ import {
   Layers,
   LineChart,
   MapPin,
+  Pencil,
   Plus,
   Sparkles,
+  Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AddUnitModal } from "@/components/assets/add-unit-modal";
+import { EditAssetModal } from "@/components/dashboard/quick-dialogs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { RowActions } from "@/components/ui/row-actions";
@@ -27,7 +30,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { api, getErrorMessage } from "@/lib/api";
 import { formatCompactMoney, formatMoney, formatPercent, monthRangeLastN } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
-import type { Unit } from "@/lib/types";
+import type { Asset, Unit } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const IncomeChart = dynamic(
@@ -39,11 +42,14 @@ const tabs = ["Overview", "Units", "Income", "Valuation", "Events"] as const;
 
 export default function AssetDetailPage() {
   const qc = useQueryClient();
+  const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const [tab, setTab] = useState<(typeof tabs)[number]>("Overview");
   const [unitModal, setUnitModal] = useState<null | "custom" | "whole">(null);
   const [editUnit, setEditUnit] = useState<Unit | null>(null);
   const [deleteUnit, setDeleteUnit] = useState<Unit | null>(null);
+  const [editAsset, setEditAsset] = useState<Asset | null>(null);
+  const [confirmDeleteAsset, setConfirmDeleteAsset] = useState(false);
 
   const deleteUnitMutation = useMutation({
     mutationFn: (unitId: string) => api.deleteUnit(unitId),
@@ -67,6 +73,19 @@ export default function AssetDetailPage() {
       await qc.invalidateQueries({ queryKey: queryKeys.units(id) });
       await qc.invalidateQueries({ queryKey: queryKeys.units() });
       toast.success("Unit updated");
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const deleteAssetMutation = useMutation({
+    mutationFn: () => api.deleteAsset(id),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.assets });
+      await qc.invalidateQueries({ queryKey: queryKeys.units() });
+      await qc.invalidateQueries({ queryKey: queryKeys.leases });
+      await qc.invalidateQueries({ queryKey: ["payments"] });
+      toast.success("Asset deleted");
+      router.push("/assets");
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
@@ -177,6 +196,16 @@ export default function AssetDetailPage() {
         detail="All active leases and payment records tied to this unit will also be permanently deleted."
         isPending={deleteUnitMutation.isPending}
       />
+      <EditAssetModal asset={editAsset} onClose={() => setEditAsset(null)} />
+      <ConfirmDialog
+        open={confirmDeleteAsset}
+        onClose={() => setConfirmDeleteAsset(false)}
+        onConfirm={() => deleteAssetMutation.mutate()}
+        title="Delete asset"
+        description={`Permanently delete "${asset?.name}"?`}
+        detail="All units, leases, and payment records linked to this asset will also be deleted."
+        isPending={deleteAssetMutation.isPending}
+      />
       <div>
         <Link
           href="/assets"
@@ -187,9 +216,29 @@ export default function AssetDetailPage() {
         </Link>
         <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <span className="inline-flex items-center rounded-full bg-muted-bg px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted">
-              {asset.type === "land" ? "Land" : "Property"}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center rounded-full bg-muted-bg px-2.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-muted">
+                {asset.type === "land" ? "Land" : "Property"}
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setEditAsset(asset)}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-muted transition hover:bg-muted-bg hover:text-foreground"
+                >
+                  <Pencil className="h-3 w-3" strokeWidth={1.75} />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteAsset(true)}
+                  className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-red-600 px-2.5 text-xs font-medium text-white shadow-sm transition hover:bg-red-700 active:bg-red-800"
+                >
+                  <Trash2 className="h-3 w-3" strokeWidth={1.75} />
+                  Delete
+                </button>
+              </div>
+            </div>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight">{asset.name}</h1>
             {asset.location ? (
               <p className="mt-2 flex items-center gap-2 text-sm text-muted">

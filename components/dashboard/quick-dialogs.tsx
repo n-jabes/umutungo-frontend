@@ -8,7 +8,7 @@ import { Modal } from "@/components/ui/modal";
 import { api, getErrorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { currentMonth, formatMoney } from "@/lib/format";
-import type { Lease, Payment, Tenant } from "@/lib/types";
+import type { Asset, Lease, Payment, Tenant } from "@/lib/types";
 
 export function AddAssetModal({
   open,
@@ -22,6 +22,8 @@ export function AddAssetModal({
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
   const [purchasePrice, setPurchasePrice] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState("");
+  const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
@@ -31,6 +33,8 @@ export function AddAssetModal({
         name: name.trim(),
         location: location.trim() || undefined,
         purchasePrice: purchasePrice.trim() || undefined,
+        purchaseDate: purchaseDate || undefined,
+        notes: notes.trim() || undefined,
       }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.assets });
@@ -38,6 +42,8 @@ export function AddAssetModal({
       setName("");
       setLocation("");
       setPurchasePrice("");
+      setPurchaseDate("");
+      setNotes("");
       setError(null);
       toast.success("Asset created successfully");
       onClose();
@@ -55,6 +61,7 @@ export function AddAssetModal({
       onClose={onClose}
       title="Add asset"
       description="Land or income-producing property in your portfolio."
+      size="lg"
     >
       <form
         className="space-y-4"
@@ -64,26 +71,28 @@ export function AddAssetModal({
           mutation.mutate();
         }}
       >
-        <div>
-          <label className="text-xs font-medium text-muted">Type</label>
-          <select
-            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
-            value={type}
-            onChange={(e) => setType(e.target.value as "property" | "land")}
-          >
-            <option value="property">Property</option>
-            <option value="land">Land</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs font-medium text-muted">Name</label>
-          <input
-            required
-            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g. Kimihurura apartments"
-          />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-xs font-medium text-muted">Type</label>
+            <select
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={type}
+              onChange={(e) => setType(e.target.value as "property" | "land")}
+            >
+              <option value="property">Property</option>
+              <option value="land">Land</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted">Name</label>
+            <input
+              required
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Kimihurura apartments"
+            />
+          </div>
         </div>
         <div>
           <label className="text-xs font-medium text-muted">Location</label>
@@ -94,14 +103,35 @@ export function AddAssetModal({
             placeholder="City, district, or landmark"
           />
         </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-xs font-medium text-muted">Purchase price (optional)</label>
+            <input
+              inputMode="decimal"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={purchasePrice}
+              onChange={(e) => setPurchasePrice(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted">Purchase date (optional)</label>
+            <input
+              type="date"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={purchaseDate}
+              onChange={(e) => setPurchaseDate(e.target.value)}
+            />
+          </div>
+        </div>
         <div>
-          <label className="text-xs font-medium text-muted">Purchase price (optional)</label>
-          <input
+          <label className="text-xs font-medium text-muted">Notes (optional)</label>
+          <textarea
+            rows={3}
             className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
-            value={purchasePrice}
-            onChange={(e) => setPurchasePrice(e.target.value)}
-            placeholder="0"
-            inputMode="decimal"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Capex history, lender covenants, tenant notes…"
           />
         </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
@@ -624,6 +654,154 @@ export function EditLeaseModal({
             onChange={(e) => setEndDate(e.target.value)}
           />
           <p className="mt-1 text-[11px] text-muted">Setting an end date marks the lease as ended.</p>
+        </div>
+        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? "Saving…" : "Save changes"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   EditAssetModal
+───────────────────────────────────────────────────────────────── */
+export function EditAssetModal({
+  asset,
+  onClose,
+}: {
+  asset: Asset | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [type, setType] = useState<"property" | "land">("property");
+  const [name, setName] = useState("");
+  const [location, setLocation] = useState("");
+  const [purchasePrice, setPurchasePrice] = useState("");
+  const [purchaseDate, setPurchaseDate] = useState("");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!asset) return;
+    setType(asset.type);
+    setName(asset.name);
+    setLocation(asset.location ?? "");
+    setPurchasePrice(asset.purchasePrice ?? "");
+    setPurchaseDate(asset.purchaseDate ? asset.purchaseDate.slice(0, 10) : "");
+    setNotes(asset.notes ?? "");
+    setError(null);
+  }, [asset]);
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.updateAsset(asset!.id, {
+        type,
+        name: name.trim(),
+        location: location.trim() || undefined,
+        purchasePrice: purchasePrice.trim() || undefined,
+        purchaseDate: purchaseDate || undefined,
+        notes: notes.trim() || undefined,
+      }),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.assets });
+      await qc.invalidateQueries({ queryKey: ["analytics"] });
+      toast.success("Asset updated");
+      onClose();
+    },
+    onError: (e: unknown) => setError(getErrorMessage(e)),
+  });
+
+  return (
+    <Modal
+      open={!!asset}
+      onClose={onClose}
+      title="Edit asset"
+      description="Update details for this property or land."
+      size="lg"
+    >
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          setError(null);
+          mutation.mutate();
+        }}
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-xs font-medium text-muted">Type</label>
+            <select
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={type}
+              onChange={(e) => setType(e.target.value as "property" | "land")}
+            >
+              <option value="property">Property</option>
+              <option value="land">Land</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted">Name</label>
+            <input
+              required
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. Kimihurura apartments"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Location</label>
+          <input
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+            placeholder="City, district, or landmark"
+          />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="text-xs font-medium text-muted">Purchase price (optional)</label>
+            <input
+              inputMode="decimal"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={purchasePrice}
+              onChange={(e) => setPurchasePrice(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted">Purchase date (optional)</label>
+            <input
+              type="date"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={purchaseDate}
+              onChange={(e) => setPurchaseDate(e.target.value)}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Notes (optional)</label>
+          <textarea
+            rows={3}
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            placeholder="Capex history, lender covenants, tenant notes…"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Asset ID (readonly)</label>
+          <input
+            readOnly
+            className="mt-1 w-full rounded-lg border border-border bg-muted-bg px-3 py-2.5 text-xs text-muted outline-none"
+            value={asset?.id ?? ""}
+          />
         </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="flex justify-end gap-2 pt-2">

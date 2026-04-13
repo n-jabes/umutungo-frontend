@@ -5,7 +5,8 @@ import Link from "next/link";
 import { Building2, ChevronRight, MapPin, Plus, TrendingUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { AddAssetModal } from "@/components/dashboard/quick-dialogs";
+import { AddAssetModal, EditAssetModal } from "@/components/dashboard/quick-dialogs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RowActions } from "@/components/ui/row-actions";
 import { Card, CardContent } from "@/components/ui/card";
 import { api, getErrorMessage } from "@/lib/api";
@@ -24,6 +25,8 @@ export default function AssetsPage() {
   const [locationFilter, setLocationFilter] = useState("");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editAsset, setEditAsset] = useState<Asset | null>(null);
+  const [deleteAsset, setDeleteAsset] = useState<Asset | null>(null);
   const { data: assets, isLoading } = useQuery({
     queryKey: queryKeys.assets,
     queryFn: () => api.listAssets(),
@@ -58,6 +61,11 @@ export default function AssetsPage() {
     mutationFn: (id: string) => api.deleteAsset(id),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.assets });
+      await qc.invalidateQueries({ queryKey: queryKeys.units() });
+      await qc.invalidateQueries({ queryKey: queryKeys.leases });
+      await qc.invalidateQueries({ queryKey: ["payments"] });
+      toast.success("Asset deleted");
+      setDeleteAsset(null);
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
@@ -65,6 +73,16 @@ export default function AssetsPage() {
   return (
     <div className="space-y-8">
       <AddAssetModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <EditAssetModal asset={editAsset} onClose={() => setEditAsset(null)} />
+      <ConfirmDialog
+        open={!!deleteAsset}
+        onClose={() => setDeleteAsset(null)}
+        onConfirm={() => deleteAsset && deleteMutation.mutate(deleteAsset.id)}
+        title="Delete asset"
+        description={`Permanently delete "${deleteAsset?.name}"?`}
+        detail="All units, leases, and payment records linked to this asset will also be deleted."
+        isPending={deleteMutation.isPending}
+      />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-muted">Portfolio</p>
@@ -155,14 +173,8 @@ export default function AssetsPage() {
                       </Link>
                       <RowActions
                         onView={() => (window.location.href = `/assets/${a.id}`)}
-                        onEdit={() => toast.info("Edit asset form can be added in this screen")}
-                        onDelete={() =>
-                          toast.promise(deleteMutation.mutateAsync(a.id), {
-                            loading: "Deleting asset...",
-                            success: "Asset deleted successfully",
-                            error: "Error deleting asset",
-                          })
-                        }
+                        onEdit={() => setEditAsset(a)}
+                        onDelete={() => setDeleteAsset(a)}
                       />
                     </div>
                   </div>

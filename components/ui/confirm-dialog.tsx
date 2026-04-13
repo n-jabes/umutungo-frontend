@@ -27,14 +27,15 @@ export function ConfirmDialog({
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
       <div className="space-y-5">
-        <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900/40 dark:bg-red-950/30">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" strokeWidth={1.75} />
+        {/* Warning block — solid red so the danger is unmistakable */}
+        <div className="flex items-start gap-3 rounded-xl bg-red-600 p-4">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-white" strokeWidth={2} />
           <div className="space-y-1">
-            <p className="text-sm text-red-800 dark:text-red-200">{description}</p>
+            <p className="text-sm font-medium text-white">{description}</p>
             {detail ? (
-              <p className="text-xs text-red-600 dark:text-red-400">{detail}</p>
+              <p className="text-xs text-red-100">{detail}</p>
             ) : null}
-            <p className="text-xs font-medium text-red-600 dark:text-red-400">
+            <p className="text-xs font-semibold text-red-200">
               This action is irreversible and cannot be undone.
             </p>
           </div>
@@ -48,7 +49,7 @@ export function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={isPending}
-            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-700 disabled:opacity-60"
+            className="rounded-lg bg-red-600 px-5 py-2 text-sm font-semibold text-white shadow transition hover:bg-red-700 active:bg-red-800 disabled:opacity-60"
           >
             {isPending ? "Deleting…" : confirmLabel}
           </button>
