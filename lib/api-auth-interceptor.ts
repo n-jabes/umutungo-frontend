@@ -6,7 +6,29 @@ import * as authStorage from "./api-session-keys";
 
 type RetryConfig = InternalAxiosRequestConfig & { _authRetry?: boolean };
 
+type SessionTokens = { accessToken: string; refreshToken: string };
+
 let installed = false;
+
+/**
+ * One in-flight refresh for the whole app. The backend rotates refresh tokens
+ * (deletes the old row on each successful refresh), so parallel `/auth/refresh`
+ * calls revoke each other and losers run `clearSessionTokens()` — wiping good tokens
+ * and causing a 401 storm from React Query + dashboard queries.
+ */
+let refreshInFlight: Promise<SessionTokens> | null = null;
+
+function refreshSessionLocked(refreshToken: string): Promise<SessionTokens> {
+  if (!refreshInFlight) {
+    refreshInFlight = api
+      .refresh(refreshToken)
+      .then((r) => ({ accessToken: r.accessToken, refreshToken: r.refreshToken }))
+      .finally(() => {
+        refreshInFlight = null;
+      });
+  }
+  return refreshInFlight;
+}
 
 /** Registers the 401 → refresh → retry handler once (safe under React Strict Mode). */
 export function installAuthRefreshInterceptor() {
@@ -27,7 +49,7 @@ export function installAuthRefreshInterceptor() {
 
       original._authRetry = true;
       try {
-        const next = await api.refresh(rt);
+        const next = await refreshSessionLocked(rt);
         setSessionTokens(next.accessToken, next.refreshToken);
         original.headers.Authorization = `Bearer ${next.accessToken}`;
         return rawApi(original);
