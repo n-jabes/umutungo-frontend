@@ -16,6 +16,10 @@ export type AuditLogEntry = {
   entityType: string;
   entityId: string | null;
   metadata?: Record<string, unknown> | null;
+  /** Present when API captured request context (Module 4). */
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  correlationId?: string | null;
   createdAt: string;
   user?: {
     id: string;
