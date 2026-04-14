@@ -8,12 +8,14 @@ import {
   ArrowRight,
   Building2,
   CheckCircle2,
+  Circle,
   CircleDollarSign,
   DoorOpen,
   Landmark,
   PiggyBank,
   Plus,
   ShieldCheck,
+  Sparkles,
   Timer,
   UserPlus,
   Wallet,
@@ -79,6 +81,15 @@ export default function DashboardPage() {
     queryKey: queryKeys.leases,
     queryFn: () => api.listLeases(),
   });
+  const tenantsQuery = useQuery({
+    queryKey: queryKeys.tenants,
+    queryFn: () => api.listTenants(),
+    enabled: user?.role !== "agent",
+  });
+  const paymentsQuery = useQuery({
+    queryKey: queryKeys.paymentSummary(month),
+    queryFn: () => api.paymentSummary(month),
+  });
 
   const chartRange = useMemo(() => monthRangeLastN(6), []);
   const incomeSeries = useQuery({
@@ -94,6 +105,19 @@ export default function DashboardPage() {
 
   const vacantCount = occupancy?.vacant ?? 0;
   const hasAssets = (assets?.length ?? 0) > 0;
+  const hasTenants = (tenantsQuery.data?.length ?? 0) > 0;
+  const hasPayments = (paymentsQuery.data?.count ?? 0) > 0;
+  const hasLeases = (leasesQuery.data?.length ?? 0) > 0;
+  const onboardingDone = hasAssets && hasTenants && hasPayments;
+  const nextAction = !hasAssets
+    ? { href: "/assets", label: "Add your first property/asset" }
+    : !hasTenants
+      ? { href: "/tenants", label: "Add your first tenant" }
+      : !hasLeases
+        ? { href: "/leases", label: "Create your first lease" }
+        : !hasPayments
+          ? { href: "/payments", label: "Record your first payment" }
+          : null;
   const collectionRate =
     outstanding && income
       ? income.totalIncome + outstanding.outstanding > 0
@@ -155,19 +179,67 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {!hasAssets && user?.role !== "agent" ? (
+      {user?.role !== "agent" && !onboardingDone ? (
         <Card className="border-main-blue/20 bg-blue-soft/35 p-5">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4">
             <div>
-              <p className="text-sm font-semibold text-foreground">Start your setup in under 2 minutes</p>
+              <p className="text-sm font-semibold text-foreground">Launch checklist: complete setup in 2-3 minutes</p>
               <p className="mt-1 text-sm text-muted">
-                Add your first asset, then attach units and leases to begin rent tracking.
+                Follow these steps once and Umutungo becomes your daily control center.
               </p>
             </div>
-            <Button type="button" className="gap-2" onClick={() => setAssetOpen(true)}>
-              <Plus className="h-4 w-4" strokeWidth={1.75} />
-              Add first asset
-            </Button>
+            <div className="grid gap-2 sm:grid-cols-3">
+              <Link
+                href="/assets"
+                className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <span className="inline-flex items-center gap-2">
+                  {hasAssets ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
+                  Add property/asset
+                </span>
+                <ArrowRight className="h-3.5 w-3.5 text-muted" />
+              </Link>
+              <Link
+                href="/tenants"
+                className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <span className="inline-flex items-center gap-2">
+                  {hasTenants ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
+                  Add tenant
+                </span>
+                <ArrowRight className="h-3.5 w-3.5 text-muted" />
+              </Link>
+              <Link
+                href="/payments"
+                className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <span className="inline-flex items-center gap-2">
+                  {hasPayments ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
+                  Record payment
+                </span>
+                <ArrowRight className="h-3.5 w-3.5 text-muted" />
+              </Link>
+            </div>
+            {nextAction ? (
+              <div className="flex items-center justify-between rounded-lg border border-main-blue/20 bg-background px-3 py-2.5 text-sm">
+                <p className="inline-flex items-center gap-2 font-medium text-foreground">
+                  <Sparkles className="h-4 w-4 text-main-blue" />
+                  Next best action
+                </p>
+                <Link href={nextAction.href} className="inline-flex items-center gap-1 text-main-blue hover:underline">
+                  {nextAction.label}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </div>
+            ) : null}
+            {!hasAssets ? (
+              <div>
+                <Button type="button" className="gap-2" onClick={() => setAssetOpen(true)}>
+                  <Plus className="h-4 w-4" strokeWidth={1.75} />
+                  Add first asset
+                </Button>
+              </div>
+            ) : null}
           </div>
         </Card>
       ) : null}

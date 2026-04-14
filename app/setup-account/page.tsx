@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { Check, Eye, EyeOff, Lock, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import {
 } from "@/lib/password-rules";
 import { cn } from "@/lib/utils";
 
-export default function SetupAccountPage() {
+function SetupAccountContent() {
   const params = useSearchParams();
   const token = params.get("token") ?? "";
   const router = useRouter();
@@ -141,5 +141,26 @@ export default function SetupAccountPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function SetupAccountPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background px-4">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Set your account password</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted">Preparing secure setup...</p>
+            </CardContent>
+          </Card>
+        </div>
+      }
+    >
+      <SetupAccountContent />
+    </Suspense>
   );
 }

@@ -35,11 +35,29 @@ export default function PortfolioPage() {
     queryKey: queryKeys.assetPerformance(month),
     queryFn: () => api.assetPerformance(month),
   });
+  const valuationsSummary = useQuery({
+    queryKey: ["analytics", "valuations-summary", (assets ?? []).map((a) => a.id).join(",")],
+    enabled: (assets?.length ?? 0) > 0,
+    queryFn: async () => {
+      const rows = await Promise.all(
+        (assets ?? []).map(async (asset) => {
+          const valuations = await api.listAssetValuations(asset.id);
+          return valuations[0] ?? null;
+        }),
+      );
+      return rows.filter(Boolean).reduce((sum, row) => sum + Number(row?.value ?? 0), 0);
+    },
+  });
 
   const chartRange = useMemo(() => monthRangeLastN(8), []);
+  const trailingRange = useMemo(() => monthRangeLastN(12), []);
   const { data: incomeSeriesData } = useQuery({
     queryKey: queryKeys.incomeSeries(chartRange.from, chartRange.to),
     queryFn: () => api.incomeSeries(chartRange.from, chartRange.to),
+  });
+  const { data: trailingIncomeData } = useQuery({
+    queryKey: queryKeys.incomeSeries(trailingRange.from, trailingRange.to),
+    queryFn: () => api.incomeSeries(trailingRange.from, trailingRange.to),
   });
 
   const book = useMemo(
@@ -63,6 +81,28 @@ export default function PortfolioPage() {
     const ranked = [...(assetPerformance?.assets ?? [])].sort((a, b) => b.incomeForMonth - a.incomeForMonth);
     return ranked[0] ?? null;
   }, [assetPerformance]);
+  const totalMonthlyIncome = useMemo(
+    () => (assetPerformance?.assets ?? []).reduce((sum, asset) => sum + asset.incomeForMonth, 0),
+    [assetPerformance],
+  );
+  const trailingIncome = useMemo(
+    () => (trailingIncomeData?.series ?? []).reduce((sum, row) => sum + row.totalIncome, 0),
+    [trailingIncomeData],
+  );
+  const annualizedYield = book > 0 ? (totalMonthlyIncome * 12) / book : null;
+  const latestValuationTotal = valuationsSummary.data ?? 0;
+  const unrealizedPL = latestValuationTotal > 0 ? latestValuationTotal - book : null;
+  const totalReturn = book > 0 && unrealizedPL !== null ? (unrealizedPL + trailingIncome) / book : null;
+  const byAssetMetrics = useMemo(() => {
+    return (assets ?? [])
+      .map((asset) => {
+        const monthIncome = (assetPerformance?.assets ?? []).find((p) => p.assetId === asset.id)?.incomeForMonth ?? 0;
+        const cost = Number(asset.purchasePrice ?? 0);
+        const annualYield = cost > 0 ? (monthIncome * 12) / cost : null;
+        return { id: asset.id, name: asset.name, cost, monthIncome, annualYield };
+      })
+      .sort((a, b) => b.monthIncome - a.monthIncome);
+  }, [assets, assetPerformance]);
 
   if (user?.role === "agent") {
     return (
@@ -144,6 +184,59 @@ export default function PortfolioPage() {
 
       <Card className="p-6">
         <CardHeader className="p-0">
+          <CardTitle>Net wealth scorecard</CardTitle>
+          <CardDescription>Clear view of where your portfolio stands today</CardDescription>
+        </CardHeader>
+        <CardContent className="mt-4 grid gap-3 p-0 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="rounded-xl border border-border bg-muted-bg/35 px-4 py-3">
+            <p className="text-xs text-muted">Book value</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums-fin text-foreground">{formatMoney(book)}</p>
+          </div>
+          <div className="rounded-xl border border-border bg-muted-bg/35 px-4 py-3">
+            <p className="text-xs text-muted">Latest appraised value</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums-fin text-foreground">
+              {latestValuationTotal > 0 ? formatMoney(latestValuationTotal) : "Add valuations"}
+            </p>
+          </div>
+          <div className="rounded-xl border border-border bg-muted-bg/35 px-4 py-3">
+            <p className="text-xs text-muted">Trailing 12-month rent</p>
+            <p className="mt-1 text-lg font-semibold tabular-nums-fin text-main-green">{formatMoney(trailingIncome)}</p>
+          </div>
+          <div className="rounded-xl border border-border bg-muted-bg/35 px-4 py-3">
+            <p className="text-xs text-muted">Total return signal</p>
+            <p className={`mt-1 text-lg font-semibold tabular-nums-fin ${totalReturn !== null && totalReturn < 0 ? "text-red-600" : "text-main-green"}`}>
+              {totalReturn === null ? "Add valuations" : `${totalReturn >= 0 ? "+" : ""}${formatPercent(totalReturn)}`}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="p-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">Income this month</p>
+          <p className="mt-3 text-2xl font-semibold tabular-nums-fin text-main-green">
+            {formatMoney(totalMonthlyIncome)}
+          </p>
+          <p className="mt-2 text-xs text-muted">Realized cash flow from paid rent in {month}</p>
+        </Card>
+        <Card className="p-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">Annualized yield (cash)</p>
+          <p className="mt-3 text-2xl font-semibold tabular-nums-fin text-foreground">
+            {annualizedYield === null ? "—" : formatPercent(annualizedYield)}
+          </p>
+          <p className="mt-2 text-xs text-muted">12x monthly rent over current book value</p>
+        </Card>
+        <Card className="p-6">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">Unrealized gain/loss</p>
+          <p className={`mt-3 text-2xl font-semibold tabular-nums-fin ${unrealizedPL !== null && unrealizedPL < 0 ? "text-red-600" : "text-main-green"}`}>
+            {unrealizedPL === null ? "Add valuations" : `${unrealizedPL >= 0 ? "+" : ""}${formatMoney(unrealizedPL)}`}
+          </p>
+          <p className="mt-2 text-xs text-muted">Latest valuations minus purchase cost basis</p>
+        </Card>
+      </div>
+
+      <Card className="p-6">
+        <CardHeader className="p-0">
           <CardTitle>Performance focus ({month})</CardTitle>
           <CardDescription>Highest rent-contributing asset this month</CardDescription>
         </CardHeader>
@@ -161,6 +254,38 @@ export default function PortfolioPage() {
           ) : (
             <p className="text-sm text-muted">No recorded payments for this month yet.</p>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="p-6">
+        <CardHeader className="p-0">
+          <CardTitle>Asset return leaders</CardTitle>
+          <CardDescription>Compare monthly income and annualized yield by asset</CardDescription>
+        </CardHeader>
+        <CardContent className="mt-4 p-0">
+          <ul className="divide-y divide-border rounded-xl border border-border">
+            {byAssetMetrics.map((asset) => (
+              <li key={asset.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-foreground">{asset.name}</p>
+                  <p className="text-xs text-muted">
+                    Cost basis: {asset.cost > 0 ? formatMoney(asset.cost) : "Missing purchase price"}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold tabular-nums-fin text-main-green">
+                    {formatMoney(asset.monthIncome)} / mo
+                  </p>
+                  <p className="text-xs text-muted">
+                    Yield: {asset.annualYield === null ? "—" : formatPercent(asset.annualYield)}
+                  </p>
+                </div>
+              </li>
+            ))}
+            {byAssetMetrics.length === 0 ? (
+              <li className="px-4 py-3 text-sm text-muted">No assets yet.</li>
+            ) : null}
+          </ul>
         </CardContent>
       </Card>
 
