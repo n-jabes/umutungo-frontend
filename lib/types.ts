@@ -119,6 +119,43 @@ export type Payment = {
   };
 };
 
+/** `GET /leases/:id/coverage` — anniversary billing from lease start (Module 2). */
+export type LeaseRentCoverageGap = { start: string; end: string };
+
+export type LeaseRentCoveragePeriod = {
+  index: number;
+  periodStart: string;
+  periodEnd: string;
+  obligationStart: string;
+  obligationEnd: string;
+  isFullyCovered: boolean;
+  gaps: LeaseRentCoverageGap[];
+  intersectingPaymentIds: string[];
+};
+
+export type LeaseRentCoverage = {
+  leaseId: string;
+  unitId: string;
+  leaseStatus: string;
+  rentAmountAtTime: string;
+  paymentRowCount: number;
+  engineVersion: number;
+  billingStrategy: string;
+  asOf: string;
+  leaseStart: string;
+  leaseEnd: string | null;
+  horizon: string;
+  expectedPeriods: LeaseRentCoveragePeriod[];
+  paidMergedIntervals: { start: string; end: string; paymentIds: string[] }[];
+  summary: {
+    hasPaymentOverlaps: boolean;
+    latestFullyCoveredObligationEnd: string | null;
+    nextUnpaidObligationStart: string | null;
+    overdueDays: number;
+    monthsEquivalentOverdue: number;
+  };
+};
+
 export type IncomeAnalytics = { month: string; totalIncome: number };
 
 export type IncomeSeriesPoint = { month: string; totalIncome: number };

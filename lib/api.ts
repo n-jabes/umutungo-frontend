@@ -8,6 +8,7 @@ import type {
   IncomeAnalytics,
   IncomeSeriesAnalytics,
   Lease,
+  LeaseRentCoverage,
   MonthlyPaymentSummary,
   OccupancyAnalytics,
   OutstandingRent,
@@ -330,6 +331,11 @@ export const api = {
 
   async getLease(id: string) {
     const { data } = await rawApi.get<Ok<Lease & { payments: Payment[] }>>(`/leases/${id}`);
+    return unwrap(data);
+  },
+
+  async getLeaseRentCoverage(leaseId: string, params?: { asOf?: string }) {
+    const { data } = await rawApi.get<Ok<LeaseRentCoverage>>(`/leases/${leaseId}/coverage`, { params });
     return unwrap(data);
   },
 
