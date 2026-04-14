@@ -40,6 +40,65 @@ export function currentMonth(): string {
   return `${y}-${m}`;
 }
 
+/** First calendar day of a billing month `YYYY-MM` as `YYYY-MM-DD`. */
+export function firstDayOfMonthYm(ym: string): string {
+  const [yStr, mStr] = ym.split("-");
+  const y = Number(yStr);
+  const m = Number(mStr);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) {
+    return `${ym}-01`;
+  }
+  return `${y}-${String(m).padStart(2, "0")}-01`;
+}
+
+/** Last calendar day of a billing month `YYYY-MM` as `YYYY-MM-DD`. */
+export function lastDayOfMonthYm(ym: string): string {
+  const [yStr, mStr] = ym.split("-");
+  const y = Number(yStr);
+  const m = Number(mStr);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || m < 1 || m > 12) {
+    return `${ym}-28`;
+  }
+  const d = new Date(y, m, 0);
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${y}-${String(m).padStart(2, "0")}-${dd}`;
+}
+
+/** Human-readable inclusive rent coverage (e.g. for tables and summaries). */
+export function formatPaymentCoverage(periodStartDate: string, periodEndDate: string): string {
+  const s = periodStartDate?.slice(0, 10) ?? "";
+  const e = periodEndDate?.slice(0, 10) ?? "";
+  if (!s || !e) return "—";
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric", year: "numeric" };
+  const ds = new Date(`${s}T12:00:00.000Z`);
+  const de = new Date(`${e}T12:00:00.000Z`);
+  if (Number.isNaN(ds.getTime()) || Number.isNaN(de.getTime())) return `${s} → ${e}`;
+  return `${ds.toLocaleDateString(undefined, opts)} – ${de.toLocaleDateString(undefined, opts)}`;
+}
+
+/** Table cell: prefer interval coverage; fall back to legacy `month` (YYYY-MM). */
+export function paymentCoverageLabel(p: {
+  periodStartDate?: string | null;
+  periodEndDate?: string | null;
+  month?: string | null;
+}): string {
+  if (p.periodStartDate && p.periodEndDate) {
+    return formatPaymentCoverage(p.periodStartDate, p.periodEndDate);
+  }
+  if (p.month) return p.month;
+  return "—";
+}
+
+/** Previous billing month `YYYY-MM`. */
+export function previousMonthYm(ym: string): string {
+  const [yStr, mStr] = ym.split("-");
+  const y = Number(yStr);
+  const m = Number(mStr);
+  if (!Number.isFinite(y) || !Number.isFinite(m)) return ym;
+  const d = new Date(y, m - 2, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export function monthOffsets(count: number): string[] {
   const out: string[] = [];
   const d = new Date();

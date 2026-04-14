@@ -7,8 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { api, getErrorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
-import { currentMonth, formatMoney } from "@/lib/format";
+import {
+  currentMonth,
+  firstDayOfMonthYm,
+  formatMoney,
+  formatPaymentCoverage,
+  lastDayOfMonthYm,
+  previousMonthYm,
+} from "@/lib/format";
 import type { Asset, Lease, Payment, Tenant } from "@/lib/types";
+import { useAuth } from "@/contexts/auth-context";
+import {
+  filterMoneyInput,
+  isValidMoneyAmount,
+  normalizeMoneyInput,
+} from "@/lib/decimal-input";
 
 export function AddAssetModal({
   open,
@@ -235,7 +248,8 @@ export function RecordPaymentModal({
   const qc = useQueryClient();
   const [leaseId, setLeaseId] = useState("");
   const [amount, setAmount] = useState("");
-  const [month, setMonth] = useState(currentMonth());
+  const [periodStart, setPeriodStart] = useState(() => firstDayOfMonthYm(currentMonth()));
+  const [periodEnd, setPeriodEnd] = useState(() => lastDayOfMonthYm(currentMonth()));
   const [method, setMethod] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -248,14 +262,31 @@ export function RecordPaymentModal({
   useEffect(() => {
     if (!open) return;
     setLeaseId(initialLeaseId ?? "");
+    setAmount("");
+    const ym = currentMonth();
+    setPeriodStart(firstDayOfMonthYm(ym));
+    setPeriodEnd(lastDayOfMonthYm(ym));
+    setError(null);
   }, [open, initialLeaseId]);
+
+  useEffect(() => {
+    if (!leaseId) {
+      setAmount("");
+      return;
+    }
+    const lease = leases?.find((l) => l.id === leaseId);
+    if (lease?.rentAmountAtTime != null && String(lease.rentAmountAtTime).trim() !== "") {
+      setAmount(filterMoneyInput(String(lease.rentAmountAtTime)));
+    }
+  }, [leaseId, leases]);
 
   const mutation = useMutation({
     mutationFn: () =>
       api.recordPayment({
         leaseId,
-        amount: amount.trim(),
-        month,
+        amount: normalizeMoneyInput(amount),
+        periodStartDate: periodStart,
+        periodEndDate: periodEnd,
         method: method.trim() || undefined,
         status: "paid",
       }),
@@ -276,12 +307,14 @@ export function RecordPaymentModal({
     },
   });
 
+  const selectedLease = leases?.find((l) => l.id === leaseId);
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       title="Record payment"
-      description="Log rent received against an active lease."
+      description="Log rent received for a date range (e.g. several months in one payment). The system stores the exact period covered."
       size="lg"
     >
       <form
@@ -291,6 +324,19 @@ export function RecordPaymentModal({
           setError(null);
           if (!leaseId) {
             setError("Select a lease.");
+            return;
+          }
+          if (!periodStart || !periodEnd) {
+            setError("Choose both start and end dates for the rent period.");
+            return;
+          }
+          if (periodStart > periodEnd) {
+            setError("Rent period start must be on or before the end date.");
+            return;
+          }
+          const amtNorm = normalizeMoneyInput(amount);
+          if (!isValidMoneyAmount(amtNorm)) {
+            setError("Enter a valid payment amount (e.g. 800000).");
             return;
           }
           mutation.mutate();
@@ -314,27 +360,106 @@ export function RecordPaymentModal({
             ))}
           </select>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="text-xs font-medium text-muted">Amount</label>
-            <input
-              required
-              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              inputMode="decimal"
-            />
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-medium text-muted">Rent covers (inclusive)</label>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                className="rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium text-muted transition hover:bg-muted-bg hover:text-foreground"
+                onClick={() => {
+                  const ym = currentMonth();
+                  setPeriodStart(firstDayOfMonthYm(ym));
+                  setPeriodEnd(lastDayOfMonthYm(ym));
+                }}
+              >
+                This month
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium text-muted transition hover:bg-muted-bg hover:text-foreground"
+                onClick={() => {
+                  const ym = previousMonthYm(currentMonth());
+                  setPeriodStart(firstDayOfMonthYm(ym));
+                  setPeriodEnd(lastDayOfMonthYm(ym));
+                }}
+              >
+                Last month
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="text-xs font-medium text-muted">Billing month</label>
-            <input
-              required
-              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              placeholder="YYYY-MM"
-            />
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+            <div>
+              <label className="text-[11px] font-medium text-muted" htmlFor="pay-period-start">
+                From
+              </label>
+              <input
+                id="pay-period-start"
+                type="date"
+                required
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+                value={periodStart}
+                onChange={(e) => setPeriodStart(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-[11px] font-medium text-muted" htmlFor="pay-period-end">
+                Through
+              </label>
+              <input
+                id="pay-period-end"
+                type="date"
+                required
+                className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+                value={periodEnd}
+                onChange={(e) => setPeriodEnd(e.target.value)}
+              />
+            </div>
           </div>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
+            Preview:{" "}
+            <span className="font-medium text-foreground">
+              {formatPaymentCoverage(periodStart, periodEnd)}
+            </span>
+          </p>
+        </div>
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-medium text-muted" htmlFor="pay-amount">
+              Amount received
+            </label>
+            <button
+              type="button"
+              id="pay-use-contract"
+              disabled={!selectedLease?.rentAmountAtTime}
+              className="rounded-md border border-border bg-background px-2 py-1 text-[11px] font-medium text-muted transition hover:bg-muted-bg hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => {
+                if (selectedLease?.rentAmountAtTime) {
+                  setAmount(filterMoneyInput(String(selectedLease.rentAmountAtTime)));
+                }
+              }}
+            >
+              Use contract rent
+            </button>
+          </div>
+          <input
+            id="pay-amount"
+            required
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={amount}
+            onChange={(e) => setAmount(filterMoneyInput(e.target.value))}
+            inputMode="decimal"
+            placeholder="e.g. 800000"
+          />
+          <p className="mt-1 text-[11px] leading-relaxed text-muted">
+            Defaults to this lease&apos;s contract rent when you pick a lease; change for partial payments, combined
+            months, or fees.
+            {selectedLease?.rentAmountAtTime ? (
+              <span className="mt-0.5 block font-medium text-foreground">
+                Contract rent: {formatMoney(selectedLease.rentAmountAtTime)}
+              </span>
+            ) : null}
+          </p>
         </div>
         <div>
           <label className="text-xs font-medium text-muted">Method (optional)</label>
@@ -455,9 +580,13 @@ export function EditPaymentModal({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const { user } = useAuth();
   const [amount, setAmount] = useState("");
+  const [periodStart, setPeriodStart] = useState("");
+  const [periodEnd, setPeriodEnd] = useState("");
   const [status, setStatus] = useState<"paid" | "pending" | "failed">("paid");
   const [method, setMethod] = useState("");
+  const [editReason, setEditReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -465,16 +594,35 @@ export function EditPaymentModal({
     setAmount(String(payment.amount));
     setStatus((payment.status ?? "paid") as "paid" | "pending" | "failed");
     setMethod(payment.method ?? "");
+    setEditReason("");
+    let ps = payment.periodStartDate?.slice(0, 10) ?? "";
+    let pe = payment.periodEndDate?.slice(0, 10) ?? "";
+    if ((!ps || !pe) && payment.month) {
+      ps = firstDayOfMonthYm(payment.month);
+      pe = lastDayOfMonthYm(payment.month);
+    }
+    setPeriodStart(ps);
+    setPeriodEnd(pe);
     setError(null);
   }, [payment]);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.updatePayment(payment!.id, {
+    mutationFn: () => {
+      const trimmedReason = editReason.trim();
+      const body: Parameters<typeof api.updatePayment>[1] = {
         amount: amount.trim(),
+        periodStartDate: periodStart,
+        periodEndDate: periodEnd,
         status,
         method: method.trim() || undefined,
-      }),
+      };
+      if (user?.role && user.role !== "owner") {
+        body.editReason = trimmedReason;
+      } else if (trimmedReason) {
+        body.editReason = trimmedReason;
+      }
+      return api.updatePayment(payment!.id, body);
+    },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["payments"] });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
@@ -486,12 +634,29 @@ export function EditPaymentModal({
   });
 
   return (
-    <Modal open={!!payment} onClose={onClose} title="Edit payment" description="Adjust amount, status, or payment method.">
+    <Modal
+      open={!!payment}
+      onClose={onClose}
+      title="Edit payment"
+      description="Update the rent period covered, amount, or status. Administrators must briefly explain every change for the audit trail."
+    >
       <form
         className="space-y-4"
         onSubmit={(e) => {
           e.preventDefault();
           setError(null);
+          if (!periodStart || !periodEnd) {
+            setError("Start and end dates are required.");
+            return;
+          }
+          if (periodStart > periodEnd) {
+            setError("Period start must be on or before the end date.");
+            return;
+          }
+          if (user?.role && user.role !== "owner" && editReason.trim().length < 3) {
+            setError("A short reason for this change is required (at least 3 characters).");
+            return;
+          }
           mutation.mutate();
         }}
       >
@@ -501,14 +666,50 @@ export function EditPaymentModal({
             <p className="mt-0.5 truncate text-sm text-foreground">{payment?.leaseLabel ?? "—"}</p>
           </div>
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Billing month</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Reference month</p>
             <p className="mt-0.5 text-sm text-foreground">{payment?.month ?? "—"}</p>
+          </div>
+          <div className="sm:col-span-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Coverage (read-only summary)</p>
+            <p className="mt-0.5 text-sm text-foreground">
+              {payment?.periodStartDate && payment?.periodEndDate
+                ? formatPaymentCoverage(payment.periodStartDate, payment.periodEndDate)
+                : payment?.month ?? "—"}
+            </p>
           </div>
           <div>
             <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Recorded at</p>
             <p className="mt-0.5 text-sm text-foreground">
               {payment ? new Date(payment.paidAt).toLocaleDateString(undefined, { dateStyle: "medium" }) : "—"}
             </p>
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="text-xs font-medium text-muted" htmlFor="edit-pay-from">
+              Rent covers from
+            </label>
+            <input
+              id="edit-pay-from"
+              type="date"
+              required
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={periodStart}
+              onChange={(e) => setPeriodStart(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted" htmlFor="edit-pay-through">
+              Through
+            </label>
+            <input
+              id="edit-pay-through"
+              type="date"
+              required
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={periodEnd}
+              onChange={(e) => setPeriodEnd(e.target.value)}
+            />
           </div>
         </div>
         <div>
@@ -540,6 +741,24 @@ export function EditPaymentModal({
             value={method}
             onChange={(e) => setMethod(e.target.value)}
             placeholder="Bank, mobile money, cash…"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted" htmlFor="edit-pay-reason">
+            Reason for change
+            {user?.role && user.role !== "owner" ? (
+              <span className="font-normal text-red-600"> (required)</span>
+            ) : (
+              <span className="font-normal text-muted"> (optional for owners)</span>
+            )}
+          </label>
+          <textarea
+            id="edit-pay-reason"
+            rows={2}
+            className="mt-1 w-full resize-y rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={editReason}
+            onChange={(e) => setEditReason(e.target.value)}
+            placeholder="e.g. Tenant paid late fees separately; corrected period end date."
           />
         </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}

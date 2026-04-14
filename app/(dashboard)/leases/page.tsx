@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Calendar, FileText, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { EditLeaseModal } from "@/components/dashboard/quick-dialogs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -11,7 +11,11 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { api, getErrorMessage } from "@/lib/api";
-import { filterMoneyInput, isValidMoneyAmount, normalizeMoneyInput } from "@/lib/decimal-input";
+import {
+  filterMoneyInput,
+  isValidMoneyAmount,
+  normalizeMoneyInput,
+} from "@/lib/decimal-input";
 import { formatMoney } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import type { Lease } from "@/lib/types";
@@ -232,6 +236,26 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [deposit, setDeposit] = useState("");
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (!open) return;
+    setUnitId("");
+    setTenantId("");
+    setStartDate(new Date().toISOString().slice(0, 10));
+    setRent("");
+    setDeposit("");
+    setError(null);
+  }, [open]);
+
+  useEffect(() => {
+    if (!unitId || !units?.length) return;
+    const u = units.find((x) => x.id === unitId);
+    if (u?.rentAmount != null && String(u.rentAmount).trim() !== "") {
+      setRent(filterMoneyInput(String(u.rentAmount)));
+    } else {
+      setRent("");
+    }
+  }, [unitId, units]);
+
   const mutation = useMutation({
     mutationFn: () => {
       const rentNorm = normalizeMoneyInput(rent);
@@ -270,7 +294,7 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
       open={open}
       onClose={onClose}
       title="Create lease"
-      description="Attach a tenant to a unit. Rent is locked for the life of the lease."
+      description="Attach a tenant to a unit. Contract rent is prefilled from the unit list price when available; adjust if the deal differs. It stays fixed for the life of the lease."
       size="lg"
     >
       <form
@@ -358,7 +382,8 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
               onChange={(e) => setRent(filterMoneyInput(e.target.value))}
             />
             <p className="mt-1 text-[11px] text-muted">
-              Monthly rent for this contract (digits only; use 0 if needed).
+              Prefilled from the unit&apos;s list rent when set on the unit; edit if the agreed contract rent is
+              different.
             </p>
           </div>
         </div>

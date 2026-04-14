@@ -100,10 +100,20 @@ export type Payment = {
   id: string;
   leaseId: string;
   amount: string;
-  month: string;
+  /** Legacy billing month (YYYY-MM); optional when using interval coverage. */
+  month: string | null;
+  /** Inclusive rent coverage start (calendar date, ISO). Present after Module 1 migration. */
+  periodStartDate?: string | null;
+  /** Inclusive rent coverage end (calendar date, ISO). */
+  periodEndDate?: string | null;
   paidAt: string;
   method: string | null;
   status: string;
+  recordedByUserId?: string | null;
+  recordedAt?: string | null;
+  lastEditedByUserId?: string | null;
+  lastEditedAt?: string | null;
+  editReason?: string | null;
   lease?: Lease & {
     unit?: { name: string | null; asset: { id: string; name: string } };
   };

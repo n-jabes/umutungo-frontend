@@ -361,7 +361,10 @@ export const api = {
   async recordPayment(body: {
     leaseId: string;
     amount: string;
-    month: string;
+    /** Use with `periodStartDate` / `periodEndDate` for flexible coverage; omit if sending `month` only. */
+    month?: string;
+    periodStartDate?: string;
+    periodEndDate?: string;
     method?: string;
     status?: "paid" | "pending" | "failed";
   }) {
@@ -371,7 +374,16 @@ export const api = {
 
   async updatePayment(
     id: string,
-    body: Partial<{ amount: string; month: string; method: string | null; status: "paid" | "pending" | "failed" }>,
+    body: Partial<{
+      amount: string;
+      month: string;
+      periodStartDate: string;
+      periodEndDate: string;
+      method: string | null;
+      status: "paid" | "pending" | "failed";
+      /** Required for admin/agent edits on the API (owners may omit). */
+      editReason: string;
+    }>,
   ) {
     const { data } = await rawApi.patch<Ok<Payment>>(`/payments/${id}`, body);
     return unwrap(data);

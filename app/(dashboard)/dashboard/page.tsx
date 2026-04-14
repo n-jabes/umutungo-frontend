@@ -87,6 +87,11 @@ export default function DashboardPage() {
     queryFn: () => api.listTenants(),
     enabled: user?.role !== "agent",
   });
+  const unitsQuery = useQuery({
+    queryKey: queryKeys.units(),
+    queryFn: () => api.listUnits(),
+    enabled: user?.role !== "agent",
+  });
   const paymentsQuery = useQuery({
     queryKey: queryKeys.paymentSummary(month),
     queryFn: () => api.paymentSummary(month),
@@ -106,19 +111,27 @@ export default function DashboardPage() {
 
   const vacantCount = occupancyQuery.data?.vacant ?? 0;
   const hasAssets = (assetsQuery.data?.length ?? 0) > 0;
+  const firstAssetId = assetsQuery.data?.[0]?.id;
+  const hasUnits = (unitsQuery.data?.length ?? 0) > 0;
   const hasTenants = (tenantsQuery.data?.length ?? 0) > 0;
   const hasPayments = (paymentsQuery.data?.count ?? 0) > 0;
   const hasLeases = (leasesQuery.data?.length ?? 0) > 0;
-  const onboardingDone = hasAssets && hasTenants && hasPayments;
+  /** Leases need a unit; payments need a lease — enforce unit before lease in onboarding. */
+  const onboardingDone = hasAssets && hasUnits && hasTenants && hasLeases && hasPayments;
   const nextAction = !hasAssets
     ? { href: "/assets", label: "Add your first property/asset" }
-    : !hasTenants
-      ? { href: "/tenants", label: "Add your first tenant" }
-      : !hasLeases
-        ? { href: "/leases", label: "Create your first lease" }
-        : !hasPayments
-          ? { href: "/payments", label: "Record your first payment" }
-          : null;
+    : !hasUnits
+      ? {
+          href: firstAssetId ? `/assets/${firstAssetId}` : "/assets",
+          label: "Add at least one unit (room, shop, etc.) under your property",
+        }
+      : !hasTenants
+        ? { href: "/tenants", label: "Add your first tenant" }
+        : !hasLeases
+          ? { href: "/leases", label: "Create your first lease" }
+          : !hasPayments
+            ? { href: "/payments", label: "Record your first payment" }
+            : null;
   const collectionRate =
     outstandingQuery.data && incomeQuery.data
       ? incomeQuery.data.totalIncome + outstandingQuery.data.outstanding > 0
@@ -135,6 +148,7 @@ export default function DashboardPage() {
     paymentsQuery.dataUpdatedAt,
     leasesQuery.dataUpdatedAt,
     tenantsQuery.dataUpdatedAt,
+    unitsQuery.dataUpdatedAt,
   );
   const dataDiscrepancies = useMemo(() => {
     const items: string[] = [];
@@ -147,8 +161,18 @@ export default function DashboardPage() {
     if (hasPayments && !hasLeases) {
       items.push("Payments exist but no leases are loaded.");
     }
+    if (hasLeases && !hasUnits) {
+      items.push("Leases exist but no units are registered — add units under your properties.");
+    }
     return items;
-  }, [hasLeases, hasPayments, leasesQuery.data, occupancyQuery.data, outstandingQuery.data?.leasesWithBalance?.length]);
+  }, [
+    hasLeases,
+    hasPayments,
+    hasUnits,
+    leasesQuery.data,
+    occupancyQuery.data,
+    outstandingQuery.data?.leasesWithBalance?.length,
+  ]);
   const leaseEndingSoon = useMemo(() => {
     const now = new Date();
     const inThirty = new Date();
@@ -211,19 +235,33 @@ export default function DashboardPage() {
             <div>
               <p className="text-sm font-semibold text-foreground">Launch checklist: complete setup in 2-3 minutes</p>
               <p className="mt-1 text-sm text-muted">
-                Follow these steps once and Umutungo becomes your daily control center.
+                Follow this order: add a property, add at least one unit inside it, then tenant → lease → payment. You
+                need a unit before you can create a lease.
               </p>
             </div>
-            <div className="grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
               <Link
                 href="/assets"
                 className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
               >
                 <span className="inline-flex items-center gap-2">
                   {hasAssets ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
-                  Add property/asset
+                  Add property
                 </span>
-                <ArrowRight className="h-3.5 w-3.5 text-muted" />
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted" />
+              </Link>
+              <Link
+                href={firstAssetId ? `/assets/${firstAssetId}` : "/assets"}
+                className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <span className="inline-flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+                  <span className="inline-flex items-center gap-2">
+                    {hasUnits ? <CheckCircle2 className="h-4 w-4 shrink-0 text-main-green" /> : <Circle className="h-4 w-4 shrink-0 text-muted" />}
+                    Add unit
+                  </span>
+                  <span className="pl-6 text-[11px] leading-snug text-muted">Before any lease</span>
+                </span>
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted" />
               </Link>
               <Link
                 href="/tenants"
@@ -233,7 +271,20 @@ export default function DashboardPage() {
                   {hasTenants ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
                   Add tenant
                 </span>
-                <ArrowRight className="h-3.5 w-3.5 text-muted" />
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted" />
+              </Link>
+              <Link
+                href="/leases"
+                className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              >
+                <span className="inline-flex min-w-0 flex-1 flex-col gap-0.5 text-left">
+                  <span className="inline-flex items-center gap-2">
+                    {hasLeases ? <CheckCircle2 className="h-4 w-4 shrink-0 text-main-green" /> : <Circle className="h-4 w-4 shrink-0 text-muted" />}
+                    Create lease
+                  </span>
+                  <span className="pl-6 text-[11px] leading-snug text-muted">Needs a unit</span>
+                </span>
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted" />
               </Link>
               <Link
                 href="/payments"
@@ -243,7 +294,7 @@ export default function DashboardPage() {
                   {hasPayments ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
                   Record payment
                 </span>
-                <ArrowRight className="h-3.5 w-3.5 text-muted" />
+                <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted" />
               </Link>
             </div>
             {nextAction ? (

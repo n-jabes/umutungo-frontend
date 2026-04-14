@@ -16,6 +16,7 @@ import {
   monthRangeLastN,
   monthRangeYearToDate,
   monthSpanInclusive,
+  paymentCoverageLabel,
 } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import type { Payment } from "@/lib/types";
@@ -149,8 +150,8 @@ function PaymentsInner() {
           <p className="text-xs font-semibold uppercase tracking-wider text-muted">Ledger</p>
           <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Payments</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-            One request loads all payments in your chosen billing-month range (up to 36 months).
-            Adjust the range below, then apply.
+            Filter by legacy billing month (YYYY-MM) for the list below. Each row also shows the exact rent period
+            covered (start–end dates) when available.
           </p>
         </div>
         <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={() => setRecordOpen(true)}>
@@ -263,7 +264,7 @@ function PaymentsInner() {
           </div>
         </div>
         <p className="mt-3 text-xs text-muted sm:text-right">
-          Default month for new entries: <span className="font-medium text-foreground">{currentMonth()}</span>
+          Quick presets use calendar months; when recording a payment you set the exact coverage dates.
         </p>
       </Card>
 
@@ -288,7 +289,10 @@ function PaymentsInner() {
                 </div>
                 <p className="mt-1 truncate text-xs text-muted">{p.leaseLabel}</p>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
-                  <span className="tabular-nums-fin font-medium text-foreground">{p.month}</span>
+                  <span className="font-medium text-foreground">{paymentCoverageLabel(p)}</span>
+                  {p.month ? (
+                    <span className="text-[10px] text-muted">ref. {p.month}</span>
+                  ) : null}
                   {p.method ? <span>{p.method}</span> : null}
                   <span>
                     {new Date(p.paidAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
@@ -313,7 +317,7 @@ function PaymentsInner() {
           <thead className="border-b border-border bg-muted-bg/50 text-xs font-semibold uppercase tracking-wide text-muted">
             <tr>
               <th className="whitespace-nowrap px-4 py-3">Paid</th>
-              <th className="whitespace-nowrap px-4 py-3">Month</th>
+              <th className="whitespace-nowrap px-4 py-3">Coverage</th>
               <th className="whitespace-nowrap px-4 py-3">Amount</th>
               <th className="whitespace-nowrap px-4 py-3">Method</th>
               <th className="whitespace-nowrap px-4 py-3">Lease</th>
@@ -337,8 +341,11 @@ function PaymentsInner() {
                       timeStyle: "short",
                     })}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3.5 font-medium tabular-nums-fin text-foreground">
-                    {p.month}
+                  <td className="max-w-[220px] whitespace-normal px-4 py-3.5 text-sm font-medium leading-snug text-foreground">
+                    <span className="block">{paymentCoverageLabel(p)}</span>
+                    {p.month ? (
+                      <span className="mt-0.5 block text-[10px] font-normal text-muted">ref. {p.month}</span>
+                    ) : null}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3.5 font-semibold tabular-nums-fin text-main-green">
                     {formatMoney(p.amount)}
