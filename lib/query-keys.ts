@@ -1,5 +1,8 @@
 export const queryKeys = {
   me: ["me"] as const,
+  agents: ["users", "agents"] as const,
+  users: ["users"] as const,
+  auditLogs: ["audit", "logs"] as const,
   assets: ["assets"] as const,
   assetValuations: (assetId: string) => ["assets", assetId, "valuations"] as const,
   units: (assetId?: string) => ["units", assetId ?? "all"] as const,

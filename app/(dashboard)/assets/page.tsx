@@ -9,6 +9,7 @@ import { AddAssetModal, EditAssetModal } from "@/components/dashboard/quick-dial
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RowActions } from "@/components/ui/row-actions";
 import { Card, CardContent } from "@/components/ui/card";
+import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
 import { currentMonth, formatCompactMoney, formatMoney } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
@@ -19,6 +20,7 @@ function typeLabel(t: Asset["type"]) {
 }
 
 export default function AssetsPage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const month = currentMonth();
   const [typeFilter, setTypeFilter] = useState<"all" | Asset["type"]>("all");
@@ -69,6 +71,17 @@ export default function AssetsPage() {
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
+
+  if (user?.role === "agent") {
+    return (
+      <Card className="p-8">
+        <h1 className="text-2xl font-semibold">Assets access restricted</h1>
+        <p className="mt-2 text-sm text-muted">
+          Agent accounts can manage leases and payments but cannot edit asset records.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-8">

@@ -16,6 +16,8 @@ import type {
   Tenant,
   Unit,
   UserPublic,
+  AgentCreateResult,
+  PaginatedAuditLogs,
 } from "./types";
 
 export function getAccessToken(): string | null {
@@ -134,6 +136,87 @@ export const api = {
 
   async me() {
     const { data } = await rawApi.get<Ok<UserPublic>>("/auth/me");
+    return unwrap(data);
+  },
+
+  async listAgents() {
+    const { data } = await rawApi.get<Ok<UserPublic[]>>("/users/agents");
+    return unwrap(data);
+  },
+
+  async createAgent(body: { name: string; email?: string; phone?: string }) {
+    const { data } = await rawApi.post<Ok<AgentCreateResult>>("/users/agents", body);
+    return unwrap(data);
+  },
+
+  async updateAgent(id: string, body: Partial<{ name: string; email: string | null; phone: string | null }>) {
+    const { data } = await rawApi.patch<Ok<UserPublic>>(`/users/agents/${id}`, body);
+    return unwrap(data);
+  },
+
+  async reissueAgentSetupToken(id: string) {
+    const { data } = await rawApi.post<Ok<{ setupToken: string; setupTokenExpiresAt: string }>>(`/users/agents/${id}/setup-token`);
+    return unwrap(data);
+  },
+
+  async deleteAgent(id: string) {
+    const { data } = await rawApi.delete<Ok<{ deleted: boolean }>>(`/users/agents/${id}`);
+    return unwrap(data);
+  },
+
+  async listUsers() {
+    const { data } = await rawApi.get<Ok<UserPublic[]>>("/admin/users");
+    return unwrap(data);
+  },
+
+  async createUser(body: {
+    name: string;
+    password: string;
+    role?: "owner" | "admin" | "agent";
+    email?: string;
+    phone?: string;
+    managedByOwnerId?: string | null;
+  }) {
+    const { data } = await rawApi.post<Ok<UserPublic>>("/admin/users", body);
+    return unwrap(data);
+  },
+
+  async updateUser(
+    id: string,
+    body: Partial<{
+      name: string;
+      password: string;
+      role: "owner" | "admin" | "agent";
+      email: string | null;
+      phone: string | null;
+      managedByOwnerId: string | null;
+    }>,
+  ) {
+    const { data } = await rawApi.patch<Ok<UserPublic>>(`/admin/users/${id}`, body);
+    return unwrap(data);
+  },
+
+  async deleteUser(id: string) {
+    const { data } = await rawApi.delete<Ok<{ deleted: boolean }>>(`/admin/users/${id}`);
+    return unwrap(data);
+  },
+
+  async listAuditLogs(params?: {
+    page?: number;
+    pageSize?: number;
+    action?: string;
+    entityType?: string;
+    actorRole?: "owner" | "admin" | "agent";
+  }) {
+    const { data } = await rawApi.get<Ok<PaginatedAuditLogs>>("/audit/logs", { params });
+    return unwrap(data);
+  },
+
+  async setupPassword(body: { token: string; password: string }) {
+    const { data } = await rawApi.post<Ok<{ user: UserPublic; accessToken: string; refreshToken: string }>>(
+      "/auth/setup-password",
+      body,
+    );
     return unwrap(data);
   },
 

@@ -14,6 +14,7 @@ import {
   TrendingUp,
   Users,
   Wallet,
+  Settings,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -34,6 +35,7 @@ const navByWorkspace = {
     { href: "/tenants",   label: "Tenants",   icon: Users },
     { href: "/leases",    label: "Leases",    icon: FileText },
     { href: "/payments",  label: "Payments",  icon: Wallet },
+    { href: "/settings",  label: "Settings",  icon: Settings },
   ],
   portfolio: [
     { href: "/portfolio", label: "Portfolio", icon: LineChart },
@@ -54,14 +56,16 @@ function NavLinks({
   onNavigate,
   variant,
   workspace,
+  itemsOverride,
 }: {
   onNavigate?: () => void;
   variant: "sidebar" | "mobile-bar" | "mobile-drawer";
   workspace: Workspace;
+  itemsOverride?: ReadonlyArray<{ href: string; label: string; icon: React.ElementType }>;
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
-  const items = navByWorkspace[workspace];
+  const items = itemsOverride ?? navByWorkspace[workspace];
   const mobilePrimary = items.slice(0, 4) as typeof items[number][];
   const mobileOverflow = items.slice(4) as typeof items[number][];
 
@@ -176,8 +180,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { workspace, setWorkspace } = useWorkspace();
   const router = useRouter();
   const [drawer, setDrawer] = useState(false);
+  const isAgent = user?.role === "agent";
+  const navItems = isAgent
+    ? navByWorkspace.rental.filter((item) => ["/dashboard", "/leases", "/payments"].includes(item.href))
+    : navByWorkspace[workspace];
 
   function handleWorkspaceSwitch(next: Workspace) {
+    if (isAgent) return;
     setWorkspace(next);
     router.push(workspaceHome[next]);
   }
@@ -187,9 +196,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div className="mx-auto flex h-full max-w-[1600px]">
         <aside className="hidden h-screen w-64 shrink-0 border-r border-border bg-card/80 px-4 py-8 backdrop-blur-sm lg:flex lg:flex-col">
           <Logo className="px-2" size="sm" />
-          <WorkspaceSwitcher workspace={workspace} onSwitch={handleWorkspaceSwitch} />
+          <WorkspaceSwitcher workspace={workspace} onSwitch={handleWorkspaceSwitch} isAgent={isAgent} />
           <div className="mt-10 flex-1">
-            <NavLinks variant="sidebar" workspace={workspace} />
+            <NavLinks variant="sidebar" workspace={workspace} itemsOverride={navItems} />
           </div>
           <div className="mt-auto space-y-3 border-t border-border pt-6">
             <p className="truncate px-2 text-xs font-medium text-foreground">{user?.name}</p>
@@ -228,7 +237,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-2 py-2 backdrop-blur-md lg:hidden">
-        <NavLinks variant="mobile-bar" workspace={workspace} />
+        <NavLinks variant="mobile-bar" workspace={workspace} itemsOverride={navItems} />
       </div>
 
       {drawer && (
@@ -258,9 +267,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   handleWorkspaceSwitch(w);
                   setDrawer(false);
                 }}
+                isAgent={isAgent}
                 className="mb-5"
               />
-              <NavLinks variant="mobile-drawer" workspace={workspace} onNavigate={() => setDrawer(false)} />
+              <NavLinks variant="mobile-drawer" workspace={workspace} itemsOverride={navItems} onNavigate={() => setDrawer(false)} />
             </div>
             <div className="border-t border-border p-4">
               <p className="mb-1 text-sm font-medium">{user?.name}</p>
@@ -293,12 +303,14 @@ function WorkspaceSwitcher({
   workspace,
   onSwitch,
   className,
+  isAgent,
 }: {
   workspace: Workspace;
   onSwitch: (w: Workspace) => void;
   className?: string;
+  isAgent?: boolean;
 }) {
-  const options = (["rental", "portfolio"] as const);
+  const options = isAgent ? (["rental"] as const) : (["rental", "portfolio"] as const);
 
   return (
     <div className={cn("mt-5 space-y-1", className)}>

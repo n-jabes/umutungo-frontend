@@ -3,8 +3,39 @@ export type UserPublic = {
   name: string;
   email: string | null;
   phone: string | null;
-  role: "owner" | "admin";
+  role: "owner" | "admin" | "agent";
+  managedByOwnerId?: string | null;
+  mustSetPassword?: boolean;
   createdAt: string;
+};
+
+export type AuditLogEntry = {
+  id: string;
+  userId: string | null;
+  action: string;
+  entityType: string;
+  entityId: string | null;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+  user?: {
+    id: string;
+    name: string;
+    role: "owner" | "admin" | "agent";
+    managedByOwnerId?: string | null;
+  } | null;
+};
+
+export type PaginatedAuditLogs = {
+  items: AuditLogEntry[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type AgentCreateResult = {
+  agent: UserPublic;
+  setupToken: string;
+  setupTokenExpiresAt: string;
 };
 
 export type Asset = {

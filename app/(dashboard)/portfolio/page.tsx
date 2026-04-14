@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { Landmark, PieChart, ShieldCheck, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/auth-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { api } from "@/lib/api";
 import { currentMonth, formatCompactMoney, formatMoney, formatPercent, monthRangeLastN } from "@/lib/format";
@@ -20,6 +21,7 @@ const GrowthChart = dynamic(
 
 export default function PortfolioPage() {
   const { workspace } = useWorkspace();
+  const { user } = useAuth();
   const { data: assets } = useQuery({
     queryKey: queryKeys.assets,
     queryFn: () => api.listAssets(),
@@ -61,6 +63,17 @@ export default function PortfolioPage() {
     const ranked = [...(assetPerformance?.assets ?? [])].sort((a, b) => b.incomeForMonth - a.incomeForMonth);
     return ranked[0] ?? null;
   }, [assetPerformance]);
+
+  if (user?.role === "agent") {
+    return (
+      <Card className="p-8">
+        <h1 className="text-2xl font-semibold">Portfolio access restricted</h1>
+        <p className="mt-2 text-sm text-muted">
+          Agent accounts can manage leases and payments, but cannot access portfolio insights.
+        </p>
+      </Card>
+    );
+  }
 
   if (workspace !== "portfolio") {
     return (

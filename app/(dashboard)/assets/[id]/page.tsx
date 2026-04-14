@@ -27,6 +27,7 @@ import { Modal } from "@/components/ui/modal";
 import { RowActions } from "@/components/ui/row-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
 import { formatCompactMoney, formatMoney, formatPercent, monthRangeLastN } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
@@ -41,6 +42,7 @@ const IncomeChart = dynamic(
 const tabs = ["Overview", "Units", "Income", "Valuation", "Events"] as const;
 
 export default function AssetDetailPage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
@@ -177,6 +179,17 @@ export default function AssetDetailPage() {
     return list.sort((a, b) => (a.date < b.date ? 1 : -1));
   }, [leasesForAsset, asset]);
   const latestValuation = valuations?.[0] ?? null;
+
+  if (user?.role === "agent") {
+    return (
+      <Card className="p-8">
+        <h1 className="text-2xl font-semibold">Asset details restricted</h1>
+        <p className="mt-2 text-sm text-muted">
+          Agent accounts can work on leases and payments only.
+        </p>
+      </Card>
+    );
+  }
 
   if (!asset) {
     return (

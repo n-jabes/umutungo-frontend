@@ -2,6 +2,7 @@
 
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { useAuth } from "@/contexts/auth-context";
+import { useWorkspace } from "@/contexts/workspace-context";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -12,11 +13,20 @@ export default function DashboardGroupLayout({
   children: React.ReactNode;
 }) {
   const { user, ready } = useAuth();
+  const { workspace, setWorkspace } = useWorkspace();
   const router = useRouter();
 
   useEffect(() => {
     if (ready && !user) router.replace("/login");
   }, [ready, user, router]);
+
+  useEffect(() => {
+    if (!ready || !user) return;
+    if (user.role === "agent" && workspace !== "rental") {
+      setWorkspace("rental");
+      router.replace("/dashboard");
+    }
+  }, [ready, user, workspace, setWorkspace, router]);
 
   if (!ready || !user) {
     return (

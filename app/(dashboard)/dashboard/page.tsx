@@ -21,6 +21,7 @@ import {
 import { useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/auth-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import {
   AddAssetModal,
@@ -51,6 +52,7 @@ const IncomeChart = dynamic(
 );
 
 export default function DashboardPage() {
+  const { user } = useAuth();
   const { workspace } = useWorkspace();
   const month = currentMonth();
   const [assetOpen, setAssetOpen] = useState(false);
@@ -134,14 +136,18 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="secondary" className="gap-2" onClick={() => setAssetOpen(true)}>
-            <Plus className="h-4 w-4" strokeWidth={1.75} />
-            Add asset
-          </Button>
-          <Button type="button" variant="secondary" className="gap-2" onClick={() => setTenantOpen(true)}>
-            <UserPlus className="h-4 w-4" strokeWidth={1.75} />
-            Add tenant
-          </Button>
+          {user?.role !== "agent" ? (
+            <>
+              <Button type="button" variant="secondary" className="gap-2" onClick={() => setAssetOpen(true)}>
+                <Plus className="h-4 w-4" strokeWidth={1.75} />
+                Add asset
+              </Button>
+              <Button type="button" variant="secondary" className="gap-2" onClick={() => setTenantOpen(true)}>
+                <UserPlus className="h-4 w-4" strokeWidth={1.75} />
+                Add tenant
+              </Button>
+            </>
+          ) : null}
           <Button type="button" className="gap-2" onClick={() => setPayOpen(true)}>
             <Wallet className="h-4 w-4" strokeWidth={1.75} />
             Record payment
@@ -149,7 +155,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {!hasAssets ? (
+      {!hasAssets && user?.role !== "agent" ? (
         <Card className="border-main-blue/20 bg-blue-soft/35 p-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>

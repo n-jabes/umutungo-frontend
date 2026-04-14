@@ -24,6 +24,7 @@ type AuthContextValue = AuthState & {
     email?: string;
     phone?: string;
   }) => Promise<void>;
+  setupPassword: (p: { token: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 };
@@ -84,16 +85,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const setupPassword = useCallback(async (body: { token: string; password: string }) => {
+    const res = await api.setupPassword(body);
+    setSessionTokens(res.accessToken, res.refreshToken);
+    setUser(res.user);
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
       ready,
       login,
       register,
+      setupPassword,
       logout,
       refreshUser,
     }),
-    [user, ready, login, register, logout, refreshUser],
+    [user, ready, login, register, setupPassword, logout, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

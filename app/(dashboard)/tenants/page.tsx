@@ -9,12 +9,14 @@ import { AddTenantModal, EditTenantModal } from "@/components/dashboard/quick-di
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RowActions } from "@/components/ui/row-actions";
 import { Card } from "@/components/ui/card";
+import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
 import { currentMonth } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import type { Tenant } from "@/lib/types";
 
 export default function TenantsPage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const month = currentMonth();
   const [status, setStatus] = useState<"all" | "active" | "inactive">("all");
@@ -74,6 +76,17 @@ export default function TenantsPage() {
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
+
+  if (user?.role === "agent") {
+    return (
+      <Card className="p-8">
+        <h1 className="text-2xl font-semibold">Tenant management restricted</h1>
+        <p className="mt-2 text-sm text-muted">
+          Agent accounts are limited to lease and payment operations.
+        </p>
+      </Card>
+    );
+  }
 
   return (
     <div className="w-full min-w-0 max-w-full space-y-5 sm:space-y-8">
