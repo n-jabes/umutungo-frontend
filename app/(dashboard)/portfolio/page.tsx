@@ -3,11 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
-import { Landmark, PieChart, TrendingUp } from "lucide-react";
+import { Landmark, PieChart, ShieldCheck, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { api } from "@/lib/api";
-import { formatCompactMoney, formatPercent, monthRangeLastN } from "@/lib/format";
+import { currentMonth, formatCompactMoney, formatMoney, formatPercent, monthRangeLastN } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 
 const GrowthChart = dynamic(
@@ -27,6 +27,11 @@ export default function PortfolioPage() {
   const { data: occupancy } = useQuery({
     queryKey: queryKeys.occupancy,
     queryFn: () => api.occupancy(),
+  });
+  const month = currentMonth();
+  const { data: assetPerformance } = useQuery({
+    queryKey: queryKeys.assetPerformance(month),
+    queryFn: () => api.assetPerformance(month),
   });
 
   const chartRange = useMemo(() => monthRangeLastN(8), []);
@@ -52,6 +57,10 @@ export default function PortfolioPage() {
   const last = series[series.length - 1]?.income ?? 0;
   const prev = series[series.length - 2]?.income ?? 0;
   const mom = prev > 0 ? (last - prev) / prev : last > 0 ? 1 : 0;
+  const topPerformer = useMemo(() => {
+    const ranked = [...(assetPerformance?.assets ?? [])].sort((a, b) => b.incomeForMonth - a.incomeForMonth);
+    return ranked[0] ?? null;
+  }, [assetPerformance]);
 
   if (workspace !== "portfolio") {
     return (
@@ -122,6 +131,28 @@ export default function PortfolioPage() {
 
       <Card className="p-6">
         <CardHeader className="p-0">
+          <CardTitle>Performance focus ({month})</CardTitle>
+          <CardDescription>Highest rent-contributing asset this month</CardDescription>
+        </CardHeader>
+        <CardContent className="mt-5 p-0">
+          {topPerformer ? (
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-border bg-muted-bg/35 p-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground">{topPerformer.name}</p>
+                <p className="mt-1 text-xs text-muted capitalize">{topPerformer.type}</p>
+              </div>
+              <p className="text-lg font-semibold tabular-nums-fin text-main-green">
+                {formatMoney(topPerformer.incomeForMonth)}
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted">No recorded payments for this month yet.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="p-6">
+        <CardHeader className="p-0">
           <CardTitle>Rent growth curve</CardTitle>
           <CardDescription>Paid rent by month — a simple proxy for portfolio yield</CardDescription>
         </CardHeader>
@@ -150,6 +181,14 @@ export default function PortfolioPage() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="flex gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted">
+        <ShieldCheck className="h-4 w-4 shrink-0 text-main-green" strokeWidth={1.75} />
+        <p>
+          Portfolio metrics are built from recorded purchases and paid rent. Add valuation entries on each asset
+          to compare cost basis against latest appraised value.
+        </p>
+      </div>
     </div>
   );
 }

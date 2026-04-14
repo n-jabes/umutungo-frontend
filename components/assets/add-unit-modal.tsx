@@ -2,6 +2,7 @@
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { api, getErrorMessage } from "@/lib/api";
@@ -64,6 +65,7 @@ export function AddUnitModal({
       await qc.invalidateQueries({ queryKey: queryKeys.assets });
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: queryKeys.occupancy });
+      toast.success(preset === "whole" ? "Single unit created" : "Unit added");
       onClose();
     },
     onError: (e: unknown) => setError(getErrorMessage(e)),

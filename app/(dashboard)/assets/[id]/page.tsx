@@ -30,7 +30,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { api, getErrorMessage } from "@/lib/api";
 import { formatCompactMoney, formatMoney, formatPercent, monthRangeLastN } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
-import type { Asset, Unit } from "@/lib/types";
+import type { Asset, AssetValuation, Unit } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const IncomeChart = dynamic(
@@ -50,6 +50,8 @@ export default function AssetDetailPage() {
   const [deleteUnit, setDeleteUnit] = useState<Unit | null>(null);
   const [editAsset, setEditAsset] = useState<Asset | null>(null);
   const [confirmDeleteAsset, setConfirmDeleteAsset] = useState(false);
+  const [valuationValue, setValuationValue] = useState("");
+  const [valuationDate, setValuationDate] = useState("");
 
   const deleteUnitMutation = useMutation({
     mutationFn: (unitId: string) => api.deleteUnit(unitId),
@@ -89,6 +91,17 @@ export default function AssetDetailPage() {
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
+  const createValuationMutation = useMutation({
+    mutationFn: (payload: { value: string; valuationDate: string }) =>
+      api.createAssetValuation(id, payload),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.assetValuations(id) });
+      toast.success("Valuation entry recorded");
+      setValuationValue("");
+      setValuationDate("");
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
 
   const { data: assets } = useQuery({
     queryKey: queryKeys.assets,
@@ -99,6 +112,11 @@ export default function AssetDetailPage() {
   const { data: units } = useQuery({
     queryKey: queryKeys.units(id),
     queryFn: () => api.listUnits(id),
+    enabled: !!id,
+  });
+  const { data: valuations } = useQuery({
+    queryKey: queryKeys.assetValuations(id),
+    queryFn: () => api.listAssetValuations(id),
     enabled: !!id,
   });
 
@@ -158,6 +176,7 @@ export default function AssetDetailPage() {
     }
     return list.sort((a, b) => (a.date < b.date ? 1 : -1));
   }, [leasesForAsset, asset]);
+  const latestValuation = valuations?.[0] ?? null;
 
   if (!asset) {
     return (
@@ -441,10 +460,59 @@ export default function AssetDetailPage() {
                 basis.
               </p>
             )}
-            <p className="text-xs leading-relaxed text-muted">
-              Formal appraisal history will appear here when the API exposes valuation entries from
-              your ledger.
-            </p>
+            <div className="rounded-xl border border-border bg-card p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted">Latest valuation</p>
+              <p className="mt-1 text-xl font-semibold tabular-nums-fin text-foreground">
+                {latestValuation ? formatMoney(latestValuation.value) : "No valuation yet"}
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                {latestValuation
+                  ? `Recorded on ${latestValuation.valuationDate.slice(0, 10)}`
+                  : "Add your first valuation entry to track appreciation over time."}
+              </p>
+            </div>
+
+            <form
+              className="grid gap-3 rounded-xl border border-border bg-muted-bg/35 p-4 sm:grid-cols-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!valuationValue.trim() || !valuationDate) {
+                  toast.error("Valuation amount and date are required");
+                  return;
+                }
+                createValuationMutation.mutate({
+                  value: valuationValue.trim(),
+                  valuationDate,
+                });
+              }}
+            >
+              <div>
+                <label className="text-xs font-medium text-muted">Valuation amount</label>
+                <input
+                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+                  value={valuationValue}
+                  onChange={(e) => setValuationValue(e.target.value)}
+                  inputMode="decimal"
+                  placeholder="0"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted">Valuation date</label>
+                <input
+                  type="date"
+                  className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+                  value={valuationDate}
+                  onChange={(e) => setValuationDate(e.target.value)}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button type="submit" disabled={createValuationMutation.isPending} className="w-full">
+                  {createValuationMutation.isPending ? "Saving…" : "Add valuation"}
+                </Button>
+              </div>
+            </form>
+
+            <ValuationTimeline valuations={valuations ?? []} purchasePrice={asset.purchasePrice} />
           </CardContent>
         </Card>
       )}
@@ -472,6 +540,52 @@ export default function AssetDetailPage() {
           </ul>
         </Card>
       )}
+    </div>
+  );
+}
+
+function ValuationTimeline({
+  valuations,
+  purchasePrice,
+}: {
+  valuations: AssetValuation[];
+  purchasePrice: string | null;
+}) {
+  if (!valuations.length) {
+    return (
+      <p className="text-xs leading-relaxed text-muted">
+        Valuation history starts once you add an entry. This helps track growth against purchase basis.
+      </p>
+    );
+  }
+
+  const basis = Number(purchasePrice ?? 0);
+  return (
+    <div className="rounded-xl border border-border bg-background/60">
+      <div className="border-b border-border px-4 py-3">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted">Valuation timeline</p>
+      </div>
+      <ul className="divide-y divide-border">
+        {valuations.map((entry) => {
+          const delta = basis > 0 ? Number(entry.value) - basis : null;
+          return (
+            <li key={entry.id} className="flex items-center justify-between gap-3 px-4 py-3">
+              <div>
+                <p className="text-sm font-medium text-foreground">{entry.valuationDate.slice(0, 10)}</p>
+                {delta !== null ? (
+                  <p className={`text-xs ${delta >= 0 ? "text-main-green" : "text-red-600"}`}>
+                    {delta >= 0 ? "+" : ""}
+                    {formatMoney(delta)} vs purchase basis
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted">Add purchase price to see gain/loss</p>
+                )}
+              </div>
+              <p className="text-sm font-semibold tabular-nums-fin text-foreground">{formatMoney(entry.value)}</p>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

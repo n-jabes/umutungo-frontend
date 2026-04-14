@@ -20,6 +20,13 @@ export type Asset = {
   _count?: { units: number };
 };
 
+export type AssetValuation = {
+  id: string;
+  assetId: string;
+  value: string;
+  valuationDate: string;
+};
+
 export type Unit = {
   id: string;
   assetId: string;

@@ -3,6 +3,7 @@ import { normalizeApiBaseUrl } from "./api-base-url";
 import { REFRESH_KEY, TOKEN_KEY } from "./api-session-keys";
 import type {
   Asset,
+  AssetValuation,
   AssetPerformance,
   IncomeAnalytics,
   IncomeSeriesAnalytics,
@@ -170,6 +171,16 @@ export const api = {
 
   async deleteAsset(id: string) {
     const { data } = await rawApi.delete<Ok<{ id: string }>>(`/assets/${id}`);
+    return unwrap(data);
+  },
+
+  async listAssetValuations(assetId: string) {
+    const { data } = await rawApi.get<Ok<AssetValuation[]>>(`/assets/${assetId}/valuations`);
+    return unwrap(data);
+  },
+
+  async createAssetValuation(assetId: string, body: { value: string; valuationDate: string }) {
+    const { data } = await rawApi.post<Ok<AssetValuation>>(`/assets/${assetId}/valuations`, body);
     return unwrap(data);
   },
 

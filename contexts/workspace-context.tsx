@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 export type Workspace = "rental" | "portfolio";
 
@@ -10,9 +10,21 @@ type WorkspaceContextValue = {
 };
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
+const WORKSPACE_KEY = "umutungo:workspace";
 
 export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
   const [workspace, setWorkspace] = useState<Workspace>("rental");
+
+  useEffect(() => {
+    const stored = localStorage.getItem(WORKSPACE_KEY);
+    if (stored === "rental" || stored === "portfolio") {
+      setWorkspace(stored);
+    }
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(WORKSPACE_KEY, workspace);
+  }, [workspace]);
 
   const value = useMemo(() => ({ workspace, setWorkspace }), [workspace]);
   return <WorkspaceContext.Provider value={value}>{children}</WorkspaceContext.Provider>;

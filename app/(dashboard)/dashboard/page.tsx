@@ -7,11 +7,14 @@ import {
   AlertTriangle,
   ArrowRight,
   Building2,
+  CheckCircle2,
   CircleDollarSign,
   DoorOpen,
   Landmark,
   PiggyBank,
   Plus,
+  ShieldCheck,
+  Timer,
   UserPlus,
   Wallet,
 } from "lucide-react";
@@ -70,6 +73,10 @@ export default function DashboardPage() {
     queryKey: queryKeys.assets,
     queryFn: () => api.listAssets(),
   });
+  const leasesQuery = useQuery({
+    queryKey: queryKeys.leases,
+    queryFn: () => api.listLeases(),
+  });
 
   const chartRange = useMemo(() => monthRangeLastN(6), []);
   const incomeSeries = useQuery({
@@ -84,6 +91,23 @@ export default function DashboardPage() {
   }, [assets]);
 
   const vacantCount = occupancy?.vacant ?? 0;
+  const hasAssets = (assets?.length ?? 0) > 0;
+  const collectionRate =
+    outstanding && income
+      ? income.totalIncome + outstanding.outstanding > 0
+        ? income.totalIncome / (income.totalIncome + outstanding.outstanding)
+        : 1
+      : null;
+  const leaseEndingSoon = useMemo(() => {
+    const now = new Date();
+    const inThirty = new Date();
+    inThirty.setDate(now.getDate() + 30);
+    return (leasesQuery.data ?? []).filter((lease) => {
+      if (lease.status !== "active" || !lease.endDate) return false;
+      const end = new Date(lease.endDate);
+      return end >= now && end <= inThirty;
+    });
+  }, [leasesQuery.data]);
 
   if (workspace !== "rental") {
     return (
@@ -125,7 +149,24 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {!hasAssets ? (
+        <Card className="border-main-blue/20 bg-blue-soft/35 p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Start your setup in under 2 minutes</p>
+              <p className="mt-1 text-sm text-muted">
+                Add your first asset, then attach units and leases to begin rent tracking.
+              </p>
+            </div>
+            <Button type="button" className="gap-2" onClick={() => setAssetOpen(true)}>
+              <Plus className="h-4 w-4" strokeWidth={1.75} />
+              Add first asset
+            </Button>
+          </div>
+        </Card>
+      ) : null}
+
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Income (this month)"
           value={formatMoney(income?.totalIncome ?? 0)}
@@ -154,6 +195,21 @@ export default function DashboardPage() {
           }
           icon={DoorOpen}
           tone="blue"
+        />
+        <StatCard
+          label="Collection health"
+          value={
+            collectionRate === null
+              ? "—"
+              : `${collectionRate >= 0.9 ? "Strong" : collectionRate >= 0.75 ? "Watch" : "At risk"}`
+          }
+          hint={
+            collectionRate === null
+              ? "Calculated once rent data loads"
+              : `${formatPercent(collectionRate)} of expected rent collected`
+          }
+          icon={ShieldCheck}
+          tone={collectionRate !== null && collectionRate < 0.75 ? "gold" : "green"}
         />
         <StatCard
           label="Book value (cost basis)"
@@ -250,9 +306,46 @@ export default function DashboardPage() {
                 Fully occupied portfolio — strong cash-flow discipline.
               </div>
             ) : null}
+
+            {leaseEndingSoon.length > 0 ? (
+              <div className="flex gap-3 rounded-xl border border-main-blue/20 bg-blue-soft/30 p-4">
+                <Timer className="mt-0.5 h-5 w-5 shrink-0 text-main-blue" strokeWidth={1.75} />
+                <div>
+                  <p className="text-sm font-medium text-foreground">Leases ending in 30 days</p>
+                  <ul className="mt-2 space-y-2 text-xs text-muted">
+                    {leaseEndingSoon.slice(0, 4).map((lease) => (
+                      <li key={lease.id} className="flex justify-between gap-2">
+                        <span className="truncate">
+                          {lease.unit?.asset?.name}
+                          {lease.unit?.name ? ` · ${lease.unit.name}` : ""}
+                        </span>
+                        <span className="shrink-0 font-medium text-foreground">
+                          {lease.endDate?.slice(0, 10)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                  {(leaseEndingSoon.length ?? 0) > 4 ? (
+                    <p className="mt-2 text-[11px] text-muted">+{leaseEndingSoon.length - 4} more</p>
+                  ) : null}
+                  <Link
+                    href="/leases"
+                    className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-main-blue hover:underline"
+                  >
+                    Review leases
+                    <ArrowRight className="h-3.5 w-3.5" strokeWidth={1.75} />
+                  </Link>
+                </div>
+              </div>
+            ) : null}
           </CardContent>
         </Card>
       </section>
+
+      <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted">
+        <CheckCircle2 className="h-4 w-4 text-main-green" strokeWidth={1.75} />
+        Data synced and secured with automatic session protection.
+      </div>
 
       <AddAssetModal open={assetOpen} onClose={() => setAssetOpen(false)} />
       <AddTenantModal open={tenantOpen} onClose={() => setTenantOpen(false)} />
