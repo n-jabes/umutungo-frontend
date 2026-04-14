@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { AuditTrailPanel } from "@/components/settings/audit-trail-panel";
-import { SettingsTabs } from "@/components/settings/settings-tabs";
+import { SettingsTabs, type SettingsTabItem } from "@/components/settings/settings-tabs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
@@ -30,12 +30,12 @@ export default function SettingsPage() {
   const isAdmin = user?.role === "admin";
   const canManage = user?.role === "owner" || isAdmin;
 
-  const tabItems = useMemo(() => {
-    const items = [
-      { id: "agents" as const, label: "Agents" },
-      { id: "audit" as const, label: "Audit trail" },
+  const tabItems = useMemo((): SettingsTabItem[] => {
+    const items: SettingsTabItem[] = [
+      { id: "agents", label: "Agents" },
+      { id: "audit", label: "Audit trail" },
     ];
-    if (isAdmin) items.push({ id: "users" as const, label: "Users" });
+    if (isAdmin) items.push({ id: "users", label: "Users" });
     return items;
   }, [isAdmin]);
 
