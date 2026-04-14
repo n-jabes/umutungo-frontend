@@ -72,3 +72,17 @@ export function monthSpanInclusive(from: string, to: string): number {
   const [ty, tm] = to.split("-").map(Number);
   return (ty - fy) * 12 + (tm - fm) + 1;
 }
+
+export function formatTimeAgo(timestamp: number | null | undefined): string {
+  if (!timestamp || Number.isNaN(timestamp)) return "Not synced yet";
+  const diff = Math.max(0, Date.now() - timestamp);
+  const sec = Math.floor(diff / 1000);
+  if (sec < 10) return "Just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  return `${day}d ago`;
+}

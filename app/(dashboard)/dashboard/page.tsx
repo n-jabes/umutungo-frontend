@@ -37,6 +37,7 @@ import {
   formatCompactMoney,
   formatMoney,
   formatPercent,
+  formatTimeAgo,
   monthRangeLastN,
 } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
@@ -61,19 +62,19 @@ export default function DashboardPage() {
   const [tenantOpen, setTenantOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
 
-  const { data: income } = useQuery({
+  const incomeQuery = useQuery({
     queryKey: queryKeys.income(month),
     queryFn: () => api.income(month),
   });
-  const { data: outstanding } = useQuery({
+  const outstandingQuery = useQuery({
     queryKey: queryKeys.outstanding(month),
     queryFn: () => api.outstandingRent(month),
   });
-  const { data: occupancy } = useQuery({
+  const occupancyQuery = useQuery({
     queryKey: queryKeys.occupancy,
     queryFn: () => api.occupancy(),
   });
-  const { data: assets } = useQuery({
+  const assetsQuery = useQuery({
     queryKey: queryKeys.assets,
     queryFn: () => api.listAssets(),
   });
@@ -99,12 +100,12 @@ export default function DashboardPage() {
   });
 
   const totalBookValue = useMemo(() => {
-    if (!assets?.length) return 0;
-    return assets.reduce((s, a) => s + Number(a.purchasePrice ?? 0), 0);
-  }, [assets]);
+    if (!assetsQuery.data?.length) return 0;
+    return assetsQuery.data.reduce((s, a) => s + Number(a.purchasePrice ?? 0), 0);
+  }, [assetsQuery.data]);
 
-  const vacantCount = occupancy?.vacant ?? 0;
-  const hasAssets = (assets?.length ?? 0) > 0;
+  const vacantCount = occupancyQuery.data?.vacant ?? 0;
+  const hasAssets = (assetsQuery.data?.length ?? 0) > 0;
   const hasTenants = (tenantsQuery.data?.length ?? 0) > 0;
   const hasPayments = (paymentsQuery.data?.count ?? 0) > 0;
   const hasLeases = (leasesQuery.data?.length ?? 0) > 0;
@@ -119,11 +120,35 @@ export default function DashboardPage() {
           ? { href: "/payments", label: "Record your first payment" }
           : null;
   const collectionRate =
-    outstanding && income
-      ? income.totalIncome + outstanding.outstanding > 0
-        ? income.totalIncome / (income.totalIncome + outstanding.outstanding)
+    outstandingQuery.data && incomeQuery.data
+      ? incomeQuery.data.totalIncome + outstandingQuery.data.outstanding > 0
+        ? incomeQuery.data.totalIncome /
+          (incomeQuery.data.totalIncome + outstandingQuery.data.outstanding)
         : 1
       : null;
+  const latestDataSync = Math.max(
+    incomeQuery.dataUpdatedAt,
+    outstandingQuery.dataUpdatedAt,
+    occupancyQuery.dataUpdatedAt,
+    assetsQuery.dataUpdatedAt,
+    incomeSeries.dataUpdatedAt,
+    paymentsQuery.dataUpdatedAt,
+    leasesQuery.dataUpdatedAt,
+    tenantsQuery.dataUpdatedAt,
+  );
+  const dataDiscrepancies = useMemo(() => {
+    const items: string[] = [];
+    if (occupancyQuery.data && occupancyQuery.data.totalUnits !== occupancyQuery.data.occupied + occupancyQuery.data.vacant) {
+      items.push("Occupancy totals do not match occupied + vacant units.");
+    }
+    if ((outstandingQuery.data?.leasesWithBalance?.length ?? 0) > (leasesQuery.data?.length ?? 0)) {
+      items.push("Overdue lease count exceeds loaded lease records.");
+    }
+    if (hasPayments && !hasLeases) {
+      items.push("Payments exist but no leases are loaded.");
+    }
+    return items;
+  }, [hasLeases, hasPayments, leasesQuery.data, occupancyQuery.data, outstandingQuery.data?.leasesWithBalance?.length]);
   const leaseEndingSoon = useMemo(() => {
     const now = new Date();
     const inThirty = new Date();
@@ -158,6 +183,7 @@ export default function DashboardPage() {
             Live view of rent collected, exposure, occupancy, and portfolio book value for{" "}
             <span className="font-medium text-foreground">{month}</span>.
           </p>
+          <p className="mt-2 text-xs text-muted">Last updated: {formatTimeAgo(latestDataSync)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {user?.role !== "agent" ? (
@@ -247,14 +273,14 @@ export default function DashboardPage() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Income (this month)"
-          value={formatMoney(income?.totalIncome ?? 0)}
+          value={formatMoney(incomeQuery.data?.totalIncome ?? 0)}
           hint="Paid rent recognized in the ledger"
           icon={CircleDollarSign}
           tone="green"
         />
         <StatCard
           label="Outstanding rent"
-          value={formatMoney(outstanding?.outstanding ?? 0)}
+          value={formatMoney(outstandingQuery.data?.outstanding ?? 0)}
           hint="Active leases still carrying a balance"
           icon={Landmark}
           tone="gold"
@@ -262,13 +288,13 @@ export default function DashboardPage() {
         <StatCard
           label="Occupancy"
           value={
-            occupancy && occupancy.totalUnits > 0
-              ? formatPercent(occupancy.rate)
+            occupancyQuery.data && occupancyQuery.data.totalUnits > 0
+              ? formatPercent(occupancyQuery.data.rate)
               : "—"
           }
           hint={
-            occupancy && occupancy.totalUnits > 0
-              ? `${occupancy.occupied} of ${occupancy.totalUnits} units leased`
+            occupancyQuery.data && occupancyQuery.data.totalUnits > 0
+              ? `${occupancyQuery.data.occupied} of ${occupancyQuery.data.totalUnits} units leased`
               : "Add units to measure occupancy"
           }
           icon={DoorOpen}
@@ -323,13 +349,13 @@ export default function DashboardPage() {
             <CardDescription>Items that need attention</CardDescription>
           </CardHeader>
           <CardContent className="mt-5 space-y-4 p-0">
-            {(outstanding?.leasesWithBalance?.length ?? 0) > 0 ? (
+            {(outstandingQuery.data?.leasesWithBalance?.length ?? 0) > 0 ? (
               <div className="flex gap-3 rounded-xl border border-amber-200/80 bg-gold-soft/60 p-4">
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-accent-gold" strokeWidth={1.75} />
                 <div>
                   <p className="text-sm font-medium text-foreground">Unpaid balances</p>
                   <ul className="mt-2 space-y-2 text-xs text-muted">
-                    {outstanding?.leasesWithBalance.slice(0, 4).map((row) => (
+                    {outstandingQuery.data?.leasesWithBalance.slice(0, 4).map((row) => (
                       <li key={row.leaseId} className="flex justify-between gap-2">
                         <span className="truncate">
                           {row.assetName}
@@ -341,9 +367,9 @@ export default function DashboardPage() {
                       </li>
                     ))}
                   </ul>
-                  {(outstanding?.leasesWithBalance.length ?? 0) > 4 ? (
+                  {(outstandingQuery.data?.leasesWithBalance.length ?? 0) > 4 ? (
                     <p className="mt-2 text-[11px] text-muted">
-                      +{(outstanding?.leasesWithBalance.length ?? 0) - 4} more
+                      +{(outstandingQuery.data?.leasesWithBalance.length ?? 0) - 4} more
                     </p>
                   ) : null}
                   <Link
@@ -379,7 +405,7 @@ export default function DashboardPage() {
                   </Link>
                 </div>
               </div>
-            ) : occupancy && occupancy.totalUnits > 0 ? (
+            ) : occupancyQuery.data && occupancyQuery.data.totalUnits > 0 ? (
               <div className="rounded-xl border border-border bg-success-soft/40 p-4 text-sm text-main-green">
                 Fully occupied portfolio — strong cash-flow discipline.
               </div>
@@ -422,8 +448,22 @@ export default function DashboardPage() {
 
       <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted">
         <CheckCircle2 className="h-4 w-4 text-main-green" strokeWidth={1.75} />
-        Data synced and secured with automatic session protection.
+        {dataDiscrepancies.length === 0
+          ? "Data consistency checks passed. Metrics look reliable."
+          : `${dataDiscrepancies.length} data consistency warning${dataDiscrepancies.length > 1 ? "s" : ""} found.`}
       </div>
+      {dataDiscrepancies.length > 0 ? (
+        <Card className="border-amber-200/70 bg-gold-soft/40 p-4">
+          <ul className="space-y-1 text-xs text-muted">
+            {dataDiscrepancies.map((item) => (
+              <li key={item} className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-gold" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
 
       <AddAssetModal open={assetOpen} onClose={() => setAssetOpen(false)} />
       <AddTenantModal open={tenantOpen} onClose={() => setTenantOpen(false)} />

@@ -3,12 +3,12 @@
 import { useQuery } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { useMemo } from "react";
-import { Landmark, PieChart, ShieldCheck, TrendingUp } from "lucide-react";
+import { AlertTriangle, Landmark, PieChart, ShieldCheck, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { api } from "@/lib/api";
-import { currentMonth, formatCompactMoney, formatMoney, formatPercent, monthRangeLastN } from "@/lib/format";
+import { currentMonth, formatCompactMoney, formatMoney, formatPercent, formatTimeAgo, monthRangeLastN } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 
 const GrowthChart = dynamic(
@@ -22,25 +22,25 @@ const GrowthChart = dynamic(
 export default function PortfolioPage() {
   const { workspace } = useWorkspace();
   const { user } = useAuth();
-  const { data: assets } = useQuery({
+  const assetsQuery = useQuery({
     queryKey: queryKeys.assets,
     queryFn: () => api.listAssets(),
   });
-  const { data: occupancy } = useQuery({
+  const occupancyQuery = useQuery({
     queryKey: queryKeys.occupancy,
     queryFn: () => api.occupancy(),
   });
   const month = currentMonth();
-  const { data: assetPerformance } = useQuery({
+  const assetPerformanceQuery = useQuery({
     queryKey: queryKeys.assetPerformance(month),
     queryFn: () => api.assetPerformance(month),
   });
   const valuationsSummary = useQuery({
-    queryKey: ["analytics", "valuations-summary", (assets ?? []).map((a) => a.id).join(",")],
-    enabled: (assets?.length ?? 0) > 0,
+    queryKey: ["analytics", "valuations-summary", (assetsQuery.data ?? []).map((a) => a.id).join(",")],
+    enabled: (assetsQuery.data?.length ?? 0) > 0,
     queryFn: async () => {
       const rows = await Promise.all(
-        (assets ?? []).map(async (asset) => {
+        (assetsQuery.data ?? []).map(async (asset) => {
           const valuations = await api.listAssetValuations(asset.id);
           return valuations[0] ?? null;
         }),
@@ -51,58 +51,80 @@ export default function PortfolioPage() {
 
   const chartRange = useMemo(() => monthRangeLastN(8), []);
   const trailingRange = useMemo(() => monthRangeLastN(12), []);
-  const { data: incomeSeriesData } = useQuery({
+  const incomeSeriesQuery = useQuery({
     queryKey: queryKeys.incomeSeries(chartRange.from, chartRange.to),
     queryFn: () => api.incomeSeries(chartRange.from, chartRange.to),
   });
-  const { data: trailingIncomeData } = useQuery({
+  const trailingIncomeQuery = useQuery({
     queryKey: queryKeys.incomeSeries(trailingRange.from, trailingRange.to),
     queryFn: () => api.incomeSeries(trailingRange.from, trailingRange.to),
   });
 
   const book = useMemo(
-    () => (assets ?? []).reduce((s, a) => s + Number(a.purchasePrice ?? 0), 0),
-    [assets],
+    () => (assetsQuery.data ?? []).reduce((s, a) => s + Number(a.purchasePrice ?? 0), 0),
+    [assetsQuery.data],
   );
 
   const series = useMemo(
     () =>
-      (incomeSeriesData?.series ?? []).map((p) => ({
+      (incomeSeriesQuery.data?.series ?? []).map((p) => ({
         month: p.month,
         income: p.totalIncome,
       })),
-    [incomeSeriesData],
+    [incomeSeriesQuery.data],
   );
 
   const last = series[series.length - 1]?.income ?? 0;
   const prev = series[series.length - 2]?.income ?? 0;
   const mom = prev > 0 ? (last - prev) / prev : last > 0 ? 1 : 0;
   const topPerformer = useMemo(() => {
-    const ranked = [...(assetPerformance?.assets ?? [])].sort((a, b) => b.incomeForMonth - a.incomeForMonth);
+    const ranked = [...(assetPerformanceQuery.data?.assets ?? [])].sort((a, b) => b.incomeForMonth - a.incomeForMonth);
     return ranked[0] ?? null;
-  }, [assetPerformance]);
+  }, [assetPerformanceQuery.data]);
   const totalMonthlyIncome = useMemo(
-    () => (assetPerformance?.assets ?? []).reduce((sum, asset) => sum + asset.incomeForMonth, 0),
-    [assetPerformance],
+    () => (assetPerformanceQuery.data?.assets ?? []).reduce((sum, asset) => sum + asset.incomeForMonth, 0),
+    [assetPerformanceQuery.data],
   );
   const trailingIncome = useMemo(
-    () => (trailingIncomeData?.series ?? []).reduce((sum, row) => sum + row.totalIncome, 0),
-    [trailingIncomeData],
+    () => (trailingIncomeQuery.data?.series ?? []).reduce((sum, row) => sum + row.totalIncome, 0),
+    [trailingIncomeQuery.data],
   );
   const annualizedYield = book > 0 ? (totalMonthlyIncome * 12) / book : null;
   const latestValuationTotal = valuationsSummary.data ?? 0;
   const unrealizedPL = latestValuationTotal > 0 ? latestValuationTotal - book : null;
   const totalReturn = book > 0 && unrealizedPL !== null ? (unrealizedPL + trailingIncome) / book : null;
   const byAssetMetrics = useMemo(() => {
-    return (assets ?? [])
+    return (assetsQuery.data ?? [])
       .map((asset) => {
-        const monthIncome = (assetPerformance?.assets ?? []).find((p) => p.assetId === asset.id)?.incomeForMonth ?? 0;
+        const monthIncome =
+          (assetPerformanceQuery.data?.assets ?? []).find((p) => p.assetId === asset.id)?.incomeForMonth ?? 0;
         const cost = Number(asset.purchasePrice ?? 0);
         const annualYield = cost > 0 ? (monthIncome * 12) / cost : null;
         return { id: asset.id, name: asset.name, cost, monthIncome, annualYield };
       })
       .sort((a, b) => b.monthIncome - a.monthIncome);
-  }, [assets, assetPerformance]);
+  }, [assetsQuery.data, assetPerformanceQuery.data]);
+  const latestDataSync = Math.max(
+    assetsQuery.dataUpdatedAt,
+    occupancyQuery.dataUpdatedAt,
+    assetPerformanceQuery.dataUpdatedAt,
+    valuationsSummary.dataUpdatedAt,
+    incomeSeriesQuery.dataUpdatedAt,
+    trailingIncomeQuery.dataUpdatedAt,
+  );
+  const consistencyWarnings = useMemo(() => {
+    const warnings: string[] = [];
+    if (occupancyQuery.data && occupancyQuery.data.totalUnits !== occupancyQuery.data.occupied + occupancyQuery.data.vacant) {
+      warnings.push("Occupancy mix does not equal total units.");
+    }
+    if ((assetsQuery.data ?? []).some((a) => !a.purchasePrice || Number(a.purchasePrice) <= 0)) {
+      warnings.push("Some assets are missing purchase price, affecting yield accuracy.");
+    }
+    if ((assetsQuery.data?.length ?? 0) > 0 && latestValuationTotal <= 0) {
+      warnings.push("No valuation history found yet. Add valuations for accurate gain/loss metrics.");
+    }
+    return warnings;
+  }, [assetsQuery.data, latestValuationTotal, occupancyQuery.data]);
 
   if (user?.role === "agent") {
     return (
@@ -134,6 +156,7 @@ export default function PortfolioPage() {
         <p className="mt-2 max-w-2xl text-sm text-muted">
           Long-range view of capital at work: book value, occupancy, and rent compounding over time.
         </p>
+        <p className="mt-2 text-xs text-muted">Last updated: {formatTimeAgo(latestDataSync)}</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -156,7 +179,7 @@ export default function PortfolioPage() {
             <div>
               <p className="text-xs font-medium uppercase tracking-wide text-muted">Occupancy</p>
               <p className="mt-3 text-2xl font-semibold tabular-nums-fin text-foreground">
-                {occupancy && occupancy.totalUnits > 0 ? formatPercent(occupancy.rate) : "—"}
+                {occupancyQuery.data && occupancyQuery.data.totalUnits > 0 ? formatPercent(occupancyQuery.data.rate) : "—"}
               </p>
               <p className="mt-2 text-xs text-muted">Leased units vs total inventory</p>
             </div>
@@ -308,13 +331,13 @@ export default function PortfolioPage() {
           <div className="rounded-xl border border-border bg-muted-bg/40 px-4 py-3">
             <p className="text-xs font-medium text-muted">Properties</p>
             <p className="mt-1 text-lg font-semibold">
-              {(assets ?? []).filter((a) => a.type === "property").length}
+              {(assetsQuery.data ?? []).filter((a) => a.type === "property").length}
             </p>
           </div>
           <div className="rounded-xl border border-border bg-muted-bg/40 px-4 py-3">
             <p className="text-xs font-medium text-muted">Land</p>
             <p className="mt-1 text-lg font-semibold">
-              {(assets ?? []).filter((a) => a.type === "land").length}
+              {(assetsQuery.data ?? []).filter((a) => a.type === "land").length}
             </p>
           </div>
         </CardContent>
@@ -323,10 +346,23 @@ export default function PortfolioPage() {
       <div className="flex gap-2 rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted">
         <ShieldCheck className="h-4 w-4 shrink-0 text-main-green" strokeWidth={1.75} />
         <p>
-          Portfolio metrics are built from recorded purchases and paid rent. Add valuation entries on each asset
-          to compare cost basis against latest appraised value.
+          {consistencyWarnings.length === 0
+            ? "Portfolio data passed consistency checks."
+            : `${consistencyWarnings.length} consistency warning${consistencyWarnings.length > 1 ? "s" : ""} found.`}
         </p>
       </div>
+      {consistencyWarnings.length > 0 ? (
+        <Card className="border-amber-200/70 bg-gold-soft/40 p-4">
+          <ul className="space-y-1 text-xs text-muted">
+            {consistencyWarnings.map((warning) => (
+              <li key={warning} className="flex items-start gap-2">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-gold" />
+                <span>{warning}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
     </div>
   );
 }
