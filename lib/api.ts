@@ -14,8 +14,11 @@ import type {
   OutstandingRent,
   Payment,
   PaymentRangeSummary,
+  PortfolioRentStatusResponse,
   Tenant,
   Unit,
+  UnitRentStatusResponse,
+  AssetRentStatusResponse,
   UserPublic,
   AgentCreateResult,
   PaginatedAuditLogs,
@@ -336,6 +339,21 @@ export const api = {
 
   async getLeaseRentCoverage(leaseId: string, params?: { asOf?: string }) {
     const { data } = await rawApi.get<Ok<LeaseRentCoverage>>(`/leases/${leaseId}/coverage`, { params });
+    return unwrap(data);
+  },
+
+  async getUnitRentStatus(unitId: string, params?: { asOf?: string }) {
+    const { data } = await rawApi.get<Ok<UnitRentStatusResponse>>(`/units/${unitId}/rent-status`, { params });
+    return unwrap(data);
+  },
+
+  async getAssetRentStatus(assetId: string, params?: { asOf?: string }) {
+    const { data } = await rawApi.get<Ok<AssetRentStatusResponse>>(`/assets/${assetId}/rent-status`, { params });
+    return unwrap(data);
+  },
+
+  async getPortfolioRentStatus(params?: { asOf?: string; assetId?: string }) {
+    const { data } = await rawApi.get<Ok<PortfolioRentStatusResponse>>("/analytics/rent-status", { params });
     return unwrap(data);
   },
 

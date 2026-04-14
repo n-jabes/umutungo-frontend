@@ -156,6 +156,84 @@ export type LeaseRentCoverage = {
   };
 };
 
+/** Module 3 — rent visibility (coverage + overdue thresholds). */
+export type RentStatusCode = "VACANT" | "PAID" | "LATE" | "CRITICAL";
+
+export type RentStatusPolicyApplied = {
+  policyVersion: number;
+  criticalOverdueDays: number;
+};
+
+export type RentStatusCounts = {
+  vacant: number;
+  paid: number;
+  late: number;
+  critical: number;
+};
+
+export type RentStatusUnitRow = {
+  unitId: string;
+  unitName: string | null;
+  unitOccupancyFlag: string;
+  leaseId: string | null;
+  coverageEngineVersion: number | null;
+  billingStrategy: string | null;
+  hasPaymentOverlaps: boolean;
+  rentStatus: RentStatusCode;
+  statusReason: string;
+  overdueDays: number;
+  latestCoveredDate: string | null;
+  nextUnpaidStartDate: string | null;
+};
+
+/** `GET /units/:id/rent-status` */
+export type UnitRentStatusResponse = {
+  scope: "unit";
+  unitId: string;
+  unitName: string | null;
+  unitOccupancyFlag: string;
+  assetId: string;
+  assetName: string;
+  asOf: string;
+  policy: RentStatusPolicyApplied;
+  leaseId: string | null;
+  coverageEngineVersion: number | null;
+  billingStrategy: string | null;
+  hasPaymentOverlaps: boolean;
+  rentStatus: RentStatusCode;
+  statusReason: string;
+  overdueDays: number;
+  latestCoveredDate: string | null;
+  nextUnpaidStartDate: string | null;
+};
+
+/** `GET /assets/:id/rent-status` */
+export type AssetRentStatusResponse = {
+  scope: "asset";
+  assetId: string;
+  assetName: string;
+  asOf: string;
+  policy: RentStatusPolicyApplied;
+  counts: RentStatusCounts;
+  units: RentStatusUnitRow[];
+};
+
+/** `GET /analytics/rent-status` */
+export type PortfolioRentStatusResponse = {
+  scope: "portfolio";
+  asOf: string;
+  assetIdFilter: string | null;
+  policy: RentStatusPolicyApplied;
+  counts: RentStatusCounts;
+  assetTotals: { assetId: string; assetName: string; counts: RentStatusCounts }[];
+  units: Array<
+    RentStatusUnitRow & {
+      assetId: string;
+      assetName: string;
+    }
+  >;
+};
+
 export type IncomeAnalytics = { month: string; totalIncome: number };
 
 export type IncomeSeriesPoint = { month: string; totalIncome: number };
