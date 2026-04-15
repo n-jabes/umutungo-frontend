@@ -472,6 +472,13 @@ function PaymentsInner() {
                   <span className={p.proofCount ? "font-medium text-main-green" : ""}>
                     {p.proofCount ? `${p.proofCount} proof${p.proofCount === 1 ? "" : "s"}` : "No proof"}
                   </span>
+                  <button
+                    type="button"
+                    className="text-main-blue underline-offset-2 transition hover:underline"
+                    onClick={() => setViewPayment(p)}
+                  >
+                    View details
+                  </button>
                   {p.month ? (
                     <span className="text-[10px] text-muted">ref. {p.month}</span>
                   ) : null}
@@ -537,15 +544,24 @@ function PaymentsInner() {
                     {p.method ?? "—"}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3.5">
-                    {p.proofCount ? (
-                      <span className="inline-flex items-center rounded-full bg-main-green/10 px-2 py-0.5 text-xs font-medium text-main-green">
-                        {p.proofCount} attached
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center rounded-full bg-muted-bg px-2 py-0.5 text-xs text-muted">
-                        None
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {p.proofCount ? (
+                        <span className="inline-flex items-center rounded-full bg-main-green/10 px-2 py-0.5 text-xs font-medium text-main-green">
+                          {p.proofCount} attached
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-muted-bg px-2 py-0.5 text-xs text-muted">
+                          None
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-main-blue underline-offset-2 transition hover:underline"
+                        onClick={() => setViewPayment(p)}
+                      >
+                        View details
+                      </button>
+                    </div>
                   </td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-muted">{p.leaseLabel}</td>
                   <td className="whitespace-nowrap px-4 py-3.5">

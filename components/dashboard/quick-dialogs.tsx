@@ -662,7 +662,7 @@ export function EditPaymentModal({
   }, [payment]);
 
   const mutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       const trimmedReason = editReason.trim();
       const body: Parameters<typeof api.updatePayment>[1] = {
         amount: amount.trim(),
@@ -676,24 +676,22 @@ export function EditPaymentModal({
       } else if (trimmedReason) {
         body.editReason = trimmedReason;
       }
-      return api.updatePayment(payment!.id, body);
+      const updated = await api.updatePayment(payment!.id, body);
+      if (proofFile) {
+        await api.uploadPaymentProof(payment!.id, proofFile);
+      }
+      return updated;
     },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["payments"] });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: queryKeys.outstanding(currentMonth()) });
+      if (payment?.id) {
+        await qc.invalidateQueries({ queryKey: queryKeys.paymentProofs(payment.id) });
+      }
+      setProofFile(null);
       toast.success("Payment updated");
       onClose();
-    },
-    onError: (e: unknown) => setError(getErrorMessage(e)),
-  });
-
-  const uploadProofMutation = useMutation({
-    mutationFn: () => api.uploadPaymentProof(payment!.id, proofFile!),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: queryKeys.paymentProofs(payment!.id) });
-      setProofFile(null);
-      toast.success("Payment proof uploaded");
     },
     onError: (e: unknown) => setError(getErrorMessage(e)),
   });
@@ -850,33 +848,12 @@ export function EditPaymentModal({
               onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
             />
             <p className="mt-1 text-[11px] text-muted">PDF, JPG, PNG only (max 5 MB).</p>
-            <div className="mt-2 flex items-center gap-2">
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={!proofFile || uploadProofMutation.isPending}
-                onClick={() => {
-                  if (!proofFile) return;
-                  if (!ALLOWED_PROOF_MIME.includes(proofFile.type)) {
-                    setError("Only PDF, JPG, and PNG files are allowed as payment proof.");
-                    return;
-                  }
-                  if (proofFile.size > 5_000_000) {
-                    setError("Payment proof must be 5 MB or smaller.");
-                    return;
-                  }
-                  setError(null);
-                  uploadProofMutation.mutate();
-                }}
-              >
-                {uploadProofMutation.isPending ? "Uploading…" : "Upload proof"}
-              </Button>
-              {proofFile ? (
-                <span className="text-xs text-muted">
-                  {proofFile.name} ({formatFileSize(proofFile.size)})
-                </span>
-              ) : null}
-            </div>
+            {proofFile ? (
+              <p className="mt-2 text-xs text-muted">
+                Selected: {proofFile.name} ({formatFileSize(proofFile.size)}). This file will upload when you click{" "}
+                <span className="font-medium text-foreground">Save changes</span>.
+              </p>
+            ) : null}
           </div>
           <div className="space-y-2 pt-1">
             <label className="text-xs font-medium text-muted">Existing proofs</label>
