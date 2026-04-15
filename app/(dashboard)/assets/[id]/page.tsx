@@ -41,6 +41,10 @@ const IncomeChart = dynamic(
 
 const tabs = ["Overview", "Units", "Income", "Valuation", "Events"] as const;
 
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 export default function AssetDetailPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -54,16 +58,22 @@ export default function AssetDetailPage() {
   const [confirmDeleteAsset, setConfirmDeleteAsset] = useState(false);
   const [valuationValue, setValuationValue] = useState("");
   const [valuationDate, setValuationDate] = useState("");
+  const [unitStatusFilter, setUnitStatusFilter] = useState<"all" | "PAID" | "LATE" | "CRITICAL" | "VACANT">("all");
+  const [riskyOnly, setRiskyOnly] = useState(false);
+  const [unitsPage, setUnitsPage] = useState(1);
+  const [unitsSearch, setUnitsSearch] = useState("");
+  const unitsPageSize = 60;
+  const asOf = useMemo(() => toIsoDate(new Date()), []);
 
   const deleteUnitMutation = useMutation({
     mutationFn: (unitId: string) => api.deleteUnit(unitId),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: queryKeys.units(id) });
-      await qc.invalidateQueries({ queryKey: queryKeys.units() });
+      await qc.invalidateQueries({ queryKey: ["units"] });
       await qc.invalidateQueries({ queryKey: queryKeys.occupancy });
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: queryKeys.assets });
+      await qc.invalidateQueries({ queryKey: queryKeys.assetRentStatus(id, asOf) });
       await qc.invalidateQueries({ queryKey: ["payments"] });
       toast.success("Unit deleted");
       setDeleteUnit(null);
@@ -74,8 +84,8 @@ export default function AssetDetailPage() {
     mutationFn: ({ unitId, name, rentAmount, status }: { unitId: string; name: string; rentAmount?: string; status?: Unit["status"] }) =>
       api.updateUnit(unitId, { name, rentAmount, status }),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: queryKeys.units(id) });
-      await qc.invalidateQueries({ queryKey: queryKeys.units() });
+      await qc.invalidateQueries({ queryKey: ["units"] });
+      await qc.invalidateQueries({ queryKey: queryKeys.assetRentStatus(id, asOf) });
       toast.success("Unit updated");
     },
     onError: (e) => toast.error(getErrorMessage(e)),
@@ -111,14 +121,31 @@ export default function AssetDetailPage() {
   });
   const asset = assets?.find((a) => a.id === id);
 
-  const { data: units } = useQuery({
-    queryKey: queryKeys.units(id),
-    queryFn: () => api.listUnits(id),
+  const { data: unitsPaged } = useQuery({
+    queryKey: queryKeys.unitsPaged({
+      assetId: id,
+      page: unitsPage,
+      pageSize: unitsPageSize,
+      search: unitsSearch.trim() || undefined,
+    }),
+    queryFn: () =>
+      api.listUnitsPaged({
+        assetId: id,
+        page: unitsPage,
+        pageSize: unitsPageSize,
+        search: unitsSearch.trim() || undefined,
+      }),
     enabled: !!id,
   });
+  const units = unitsPaged?.items ?? [];
   const { data: valuations } = useQuery({
     queryKey: queryKeys.assetValuations(id),
     queryFn: () => api.listAssetValuations(id),
+    enabled: !!id,
+  });
+  const { data: assetRentStatus } = useQuery({
+    queryKey: queryKeys.assetRentStatus(id, asOf),
+    queryFn: () => api.getAssetRentStatus(id, { asOf }),
     enabled: !!id,
   });
 
@@ -150,14 +177,23 @@ export default function AssetDetailPage() {
   }, [assetIncomeSeries]);
 
   const occupiedUnits = useMemo(
-    () => (units ?? []).filter((u) => u.status === "occupied").length,
-    [units],
+    () => (assetRentStatus ? assetRentStatus.counts.paid + assetRentStatus.counts.late + assetRentStatus.counts.critical : 0),
+    [assetRentStatus],
   );
   const occupancyRate =
-    units && units.length > 0 ? occupiedUnits / units.length : 0;
+    assetRentStatus
+      ? (assetRentStatus.counts.paid + assetRentStatus.counts.late + assetRentStatus.counts.critical) /
+        Math.max(
+          1,
+          assetRentStatus.counts.paid +
+            assetRentStatus.counts.late +
+            assetRentStatus.counts.critical +
+            assetRentStatus.counts.vacant,
+        )
+      : 0;
 
   const monthlyRentPotential = useMemo(() => {
-    return (units ?? []).reduce((s, u) => s + Number(u.rentAmount ?? 0), 0);
+    return units.reduce((s, u) => s + Number(u.rentAmount ?? 0), 0);
   }, [units]);
 
   const events = useMemo(() => {
@@ -179,6 +215,27 @@ export default function AssetDetailPage() {
     return list.sort((a, b) => (a.date < b.date ? 1 : -1));
   }, [leasesForAsset, asset]);
   const latestValuation = valuations?.[0] ?? null;
+  const unitStatusMap = useMemo(() => {
+    const map = new Map<string, { rentStatus: "VACANT" | "PAID" | "LATE" | "CRITICAL"; overdueDays: number }>();
+    for (const row of assetRentStatus?.units ?? []) {
+      map.set(row.unitId, { rentStatus: row.rentStatus, overdueDays: row.overdueDays });
+    }
+    return map;
+  }, [assetRentStatus?.units]);
+  const unitsForMap = useMemo(() => {
+    let rows = units.map((u) => ({
+      ...u,
+      rentStatus: unitStatusMap.get(u.id)?.rentStatus ?? (u.status === "occupied" ? "PAID" : "VACANT"),
+      overdueDays: unitStatusMap.get(u.id)?.overdueDays ?? 0,
+    }));
+    if (riskyOnly) rows = rows.filter((u) => u.rentStatus === "LATE" || u.rentStatus === "CRITICAL");
+    if (unitStatusFilter !== "all") rows = rows.filter((u) => u.rentStatus === unitStatusFilter);
+    return rows;
+  }, [riskyOnly, unitStatusFilter, unitStatusMap, units]);
+  useEffect(() => {
+    setUnitsPage(1);
+  }, [id, riskyOnly, unitStatusFilter, unitsSearch]);
+  const unitsTotalPages = unitsPaged?.totalPages ?? 1;
 
   if (user?.role === "agent") {
     return (
@@ -286,7 +343,7 @@ export default function AssetDetailPage() {
               icon={DoorClosed}
             />
             <StatPill
-              label="Monthly rent (units)"
+              label="Visible monthly rent"
               value={formatCompactMoney(monthlyRentPotential)}
               icon={LineChart}
             />
@@ -388,6 +445,123 @@ export default function AssetDetailPage() {
                 <Home className="h-4 w-4" strokeWidth={1.75} />
                 {asset.type === "land" ? "One parcel" : "Whole property"}
               </Button>
+            </div>
+          </div>
+          <div className="border-b border-border bg-gradient-to-b from-slate-50/80 to-white/60 px-6 py-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Occupancy & payment map</p>
+                <p className="text-xs text-muted">Modern tile map with payment-status colors.</p>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {(["all", "PAID", "LATE", "CRITICAL", "VACANT"] as const).map((status) => (
+                  <button
+                    key={status}
+                    type="button"
+                    onClick={() => setUnitStatusFilter(status)}
+                    className={
+                      unitStatusFilter === status
+                        ? "rounded-lg bg-main-blue px-3 py-1.5 text-xs font-medium text-white"
+                        : "rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-muted-bg"
+                    }
+                  >
+                    {status}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setRiskyOnly((v) => !v)}
+                  className={
+                    riskyOnly
+                      ? "rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-medium text-white"
+                      : "rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-muted-bg"
+                  }
+                >
+                  Show only risky units
+                </button>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              <input
+                className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-main-blue/30 focus:ring-2 sm:max-w-xs"
+                placeholder="Search unit name..."
+                value={unitsSearch}
+                onChange={(e) => setUnitsSearch(e.target.value)}
+              />
+              <p className="text-xs text-muted">
+                Showing page {unitsPage} of {unitsTotalPages} ({unitsPaged?.total ?? 0} units)
+              </p>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {unitsForMap.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => setEditUnit(u)}
+                  className={cn(
+                    "group relative overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+                    "before:absolute before:inset-0 before:pointer-events-none before:bg-gradient-to-br before:from-white/40 before:to-transparent",
+                    u.rentStatus === "CRITICAL"
+                      ? "border-rose-300 bg-gradient-to-br from-rose-50 to-rose-100/40"
+                      : u.rentStatus === "LATE"
+                        ? "border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100/40"
+                        : u.rentStatus === "PAID"
+                          ? "border-emerald-300 bg-gradient-to-br from-emerald-50 to-emerald-100/40"
+                          : "border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100/40",
+                  )}
+                >
+                  <div className="relative z-10">
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">{u.type ?? "unit"}</p>
+                    <p className="mt-1 truncate text-base font-semibold text-foreground">{u.name ?? "Unnamed unit"}</p>
+                    <p className="mt-1 text-xs text-muted">
+                      {u.rentAmount ? `${formatCompactMoney(u.rentAmount)}/period` : "No rent set"}
+                    </p>
+                    <div className="mt-3 flex items-center justify-between">
+                      <span
+                        className={cn(
+                          "rounded-full px-2 py-0.5 text-[11px] font-medium",
+                          u.rentStatus === "CRITICAL"
+                            ? "bg-rose-100 text-rose-700"
+                            : u.rentStatus === "LATE"
+                              ? "bg-amber-100 text-amber-700"
+                              : u.rentStatus === "PAID"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : "bg-slate-100 text-slate-700",
+                        )}
+                      >
+                        {u.rentStatus}
+                      </span>
+                      {u.overdueDays > 0 ? <span className="text-[11px] font-medium text-muted">{u.overdueDays}d overdue</span> : null}
+                    </div>
+                  </div>
+                </button>
+              ))}
+              {unitsForMap.length === 0 ? (
+                <div className="col-span-full rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
+                  No units match this filter.
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-4 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setUnitsPage((p) => Math.max(1, p - 1))}
+                disabled={unitsPage <= 1}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span className="text-xs text-muted">
+                {unitsPage}/{unitsTotalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setUnitsPage((p) => Math.min(unitsTotalPages, p + 1))}
+                disabled={unitsPage >= unitsTotalPages}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+              >
+                Next
+              </button>
             </div>
           </div>
           <ul className="divide-y divide-border">

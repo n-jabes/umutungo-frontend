@@ -17,6 +17,7 @@ import type {
   PortfolioRentStatusResponse,
   Tenant,
   Unit,
+  PaginatedUnits,
   UnitRentStatusResponse,
   AssetRentStatusResponse,
   UserPublic,
@@ -277,6 +278,17 @@ export const api = {
     const { data } = await rawApi.get<Ok<Unit[]>>("/units", {
       params: assetId ? { assetId } : undefined,
     });
+    return unwrap(data);
+  },
+
+  async listUnitsPaged(params?: {
+    assetId?: string;
+    page?: number;
+    pageSize?: number;
+    status?: "vacant" | "occupied";
+    search?: string;
+  }) {
+    const { data } = await rawApi.get<Ok<PaginatedUnits>>("/units/paged", { params });
     return unwrap(data);
   },
 

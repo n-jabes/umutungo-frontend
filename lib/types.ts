@@ -72,6 +72,14 @@ export type Unit = {
   createdAt: string;
 };
 
+export type PaginatedUnits = {
+  items: Unit[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
 export type Tenant = {
   id: string;
   ownerId: string;

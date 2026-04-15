@@ -11,13 +11,16 @@ import {
   Circle,
   CircleDollarSign,
   DoorOpen,
+  Flame,
   Landmark,
   PiggyBank,
   Plus,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Timer,
   UserPlus,
+  Users,
   Wallet,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -42,6 +45,10 @@ import {
 } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
 const IncomeChart = dynamic(
   () => import("@/components/charts/income-chart").then((m) => m.IncomeChart),
   {
@@ -61,6 +68,13 @@ export default function DashboardPage() {
   const [assetOpen, setAssetOpen] = useState(false);
   const [tenantOpen, setTenantOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
+  const [riskFilter, setRiskFilter] = useState<"all" | "PAID" | "LATE" | "CRITICAL" | "VACANT">("all");
+  const asOf = useMemo(() => toIsoDate(new Date()), []);
+  const previousAsOf = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return toIsoDate(d);
+  }, []);
 
   const incomeQuery = useQuery({
     queryKey: queryKeys.income(month),
@@ -95,6 +109,14 @@ export default function DashboardPage() {
   const paymentsQuery = useQuery({
     queryKey: queryKeys.paymentSummary(month),
     queryFn: () => api.paymentSummary(month),
+  });
+  const portfolioStatusQuery = useQuery({
+    queryKey: queryKeys.portfolioRentStatus(asOf),
+    queryFn: () => api.getPortfolioRentStatus({ asOf }),
+  });
+  const portfolioStatusPreviousQuery = useQuery({
+    queryKey: queryKeys.portfolioRentStatus(previousAsOf),
+    queryFn: () => api.getPortfolioRentStatus({ asOf: previousAsOf }),
   });
 
   const chartRange = useMemo(() => monthRangeLastN(6), []);
@@ -183,6 +205,13 @@ export default function DashboardPage() {
       return end >= now && end <= inThirty;
     });
   }, [leasesQuery.data]);
+  const riskCounts = portfolioStatusQuery.data?.counts;
+  const previousRiskCounts = portfolioStatusPreviousQuery.data?.counts;
+  const riskRows = useMemo(() => {
+    const rows = portfolioStatusQuery.data?.units ?? [];
+    if (riskFilter === "all") return rows;
+    return rows.filter((row) => row.rentStatus === riskFilter);
+  }, [portfolioStatusQuery.data?.units, riskFilter]);
 
   if (workspace !== "rental") {
     return (
@@ -375,6 +404,166 @@ export default function DashboardPage() {
           icon={PiggyBank}
           tone="neutral"
         />
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">Portfolio risk & performance</h2>
+            <p className="text-sm text-muted">Color-coded rent health by active policy as of {asOf}.</p>
+          </div>
+          <Link href="/portfolio" className="inline-flex items-center gap-1 text-sm font-medium text-main-blue hover:underline">
+            Full portfolio view
+            <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <button
+            type="button"
+            onClick={() => setRiskFilter("PAID")}
+            className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Units paid</p>
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            </div>
+            <p className="mt-3 text-3xl font-semibold tabular-nums-fin text-foreground">{riskCounts?.paid ?? "—"}</p>
+            <p className="mt-1 text-xs text-muted">
+              {previousRiskCounts
+                ? `${(riskCounts?.paid ?? 0) - previousRiskCounts.paid >= 0 ? "+" : ""}${(riskCounts?.paid ?? 0) - previousRiskCounts.paid} vs 30d`
+                : "Trend loading..."}
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setRiskFilter("LATE")}
+            className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Late</p>
+              <Timer className="h-4 w-4 text-amber-600" />
+            </div>
+            <p className="mt-3 text-3xl font-semibold tabular-nums-fin text-foreground">{riskCounts?.late ?? "—"}</p>
+            <p className="mt-1 text-xs text-muted">
+              {previousRiskCounts
+                ? `${(riskCounts?.late ?? 0) - previousRiskCounts.late >= 0 ? "+" : ""}${(riskCounts?.late ?? 0) - previousRiskCounts.late} vs 30d`
+                : "Trend loading..."}
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setRiskFilter("CRITICAL")}
+            className="rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">Critical</p>
+              <Flame className="h-4 w-4 text-rose-600" />
+            </div>
+            <p className="mt-3 text-3xl font-semibold tabular-nums-fin text-foreground">{riskCounts?.critical ?? "—"}</p>
+            <p className="mt-1 text-xs text-muted">
+              {previousRiskCounts
+                ? `${(riskCounts?.critical ?? 0) - previousRiskCounts.critical >= 0 ? "+" : ""}${(riskCounts?.critical ?? 0) - previousRiskCounts.critical} vs 30d`
+                : "Trend loading..."}
+            </p>
+          </button>
+          <button
+            type="button"
+            onClick={() => setRiskFilter("VACANT")}
+            className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Vacant</p>
+              <Users className="h-4 w-4 text-slate-600" />
+            </div>
+            <p className="mt-3 text-3xl font-semibold tabular-nums-fin text-foreground">{riskCounts?.vacant ?? "—"}</p>
+            <p className="mt-1 text-xs text-muted">
+              {previousRiskCounts
+                ? `${(riskCounts?.vacant ?? 0) - previousRiskCounts.vacant >= 0 ? "+" : ""}${(riskCounts?.vacant ?? 0) - previousRiskCounts.vacant} vs 30d`
+                : "Trend loading..."}
+            </p>
+          </button>
+        </div>
+        <Card className="p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Risk drill-down</p>
+              <p className="text-xs text-muted">Focused unit list for portfolio follow-up.</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(["all", "PAID", "LATE", "CRITICAL", "VACANT"] as const).map((status) => (
+                <button
+                  key={status}
+                  type="button"
+                  onClick={() => setRiskFilter(status)}
+                  className={
+                    riskFilter === status
+                      ? "rounded-lg bg-main-blue px-3 py-1.5 text-xs font-medium text-white"
+                      : "rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-medium text-muted transition hover:bg-muted-bg"
+                  }
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[680px] text-left text-sm">
+              <thead className="text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="py-2">Asset / Unit</th>
+                  <th className="py-2">Status</th>
+                  <th className="py-2">Overdue</th>
+                  <th className="py-2">Reason</th>
+                  <th className="py-2 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {riskRows.slice(0, 8).map((row) => (
+                  <tr key={row.unitId}>
+                    <td className="py-2.5">
+                      <p className="font-medium text-foreground">{row.assetName}</p>
+                      <p className="text-xs text-muted">{row.unitName ?? "Unnamed unit"}</p>
+                    </td>
+                    <td className="py-2.5">
+                      <span
+                        className={
+                          row.rentStatus === "CRITICAL"
+                            ? "rounded-full bg-rose-100 px-2 py-0.5 text-xs font-medium text-rose-700"
+                            : row.rentStatus === "LATE"
+                              ? "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700"
+                              : row.rentStatus === "PAID"
+                                ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700"
+                                : "rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
+                        }
+                      >
+                        {row.rentStatus}
+                      </span>
+                    </td>
+                    <td className="py-2.5 tabular-nums-fin">{row.overdueDays}d</td>
+                    <td className="py-2.5 text-xs text-muted">{row.statusReason}</td>
+                    <td className="py-2.5 text-right">
+                      <Link href="/payments" className="text-xs font-medium text-main-blue hover:underline">
+                        Open payments
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+                {riskRows.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-6 text-center text-sm text-muted">
+                      No units in this filter.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+          {portfolioStatusQuery.data?.units && portfolioStatusQuery.data.units.length > 8 ? (
+            <p className="mt-3 text-xs text-muted">
+              Showing first 8 units. Open full portfolio view for complete list.
+            </p>
+          ) : null}
+        </Card>
       </section>
 
       <section className="grid gap-6 lg:grid-cols-3">
