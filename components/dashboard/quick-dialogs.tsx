@@ -23,6 +23,15 @@ import {
   normalizeMoneyInput,
 } from "@/lib/decimal-input";
 
+const ALLOWED_PROOF_MIME = ["application/pdf", "image/jpeg", "image/png"];
+
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function AddAssetModal({
   open,
   onClose,
@@ -251,6 +260,7 @@ export function RecordPaymentModal({
   const [periodStart, setPeriodStart] = useState(() => firstDayOfMonthYm(currentMonth()));
   const [periodEnd, setPeriodEnd] = useState(() => lastDayOfMonthYm(currentMonth()));
   const [method, setMethod] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const { data: leases } = useQuery({
@@ -266,6 +276,7 @@ export function RecordPaymentModal({
     const ym = currentMonth();
     setPeriodStart(firstDayOfMonthYm(ym));
     setPeriodEnd(lastDayOfMonthYm(ym));
+    setProofFile(null);
     setError(null);
   }, [open, initialLeaseId]);
 
@@ -281,21 +292,27 @@ export function RecordPaymentModal({
   }, [leaseId, leases]);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.recordPayment({
+    mutationFn: async () => {
+      const payment = await api.recordPayment({
         leaseId,
         amount: normalizeMoneyInput(amount),
         periodStartDate: periodStart,
         periodEndDate: periodEnd,
         method: method.trim() || undefined,
         status: "paid",
-      }),
+      });
+      if (proofFile) {
+        await api.uploadPaymentProof(payment.id, proofFile);
+      }
+      return payment;
+    },
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: ["payments"] });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: ["analytics"] });
       setAmount("");
       setMethod("");
+      setProofFile(null);
       setError(null);
       toast.success("Payment recorded");
       onClose();
@@ -337,6 +354,14 @@ export function RecordPaymentModal({
           const amtNorm = normalizeMoneyInput(amount);
           if (!isValidMoneyAmount(amtNorm)) {
             setError("Enter a valid payment amount (e.g. 800000).");
+            return;
+          }
+          if (proofFile && !ALLOWED_PROOF_MIME.includes(proofFile.type)) {
+            setError("Only PDF, JPG, and PNG files are allowed as payment proof.");
+            return;
+          }
+          if (proofFile && proofFile.size > 5_000_000) {
+            setError("Payment proof must be 5 MB or smaller.");
             return;
           }
           mutation.mutate();
@@ -470,6 +495,26 @@ export function RecordPaymentModal({
             placeholder="Bank, mobile money, cash…"
           />
         </div>
+        <div>
+          <label className="text-xs font-medium text-muted" htmlFor="payment-proof">
+            Proof of payment (optional)
+          </label>
+          <input
+            id="payment-proof"
+            type="file"
+            accept=".pdf,image/png,image/jpeg"
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-main-blue/30 focus:ring-2 file:mr-3 file:rounded-md file:border-0 file:bg-main-blue file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white"
+            onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+          />
+          <p className="mt-1 text-[11px] text-muted">
+            Accepted formats: PDF, JPG, PNG. Max 5 MB.
+            {proofFile ? (
+              <span className="ml-1 font-medium text-foreground">
+                Selected: {proofFile.name} ({formatFileSize(proofFile.size)})
+              </span>
+            ) : null}
+          </p>
+        </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose}>
@@ -587,7 +632,15 @@ export function EditPaymentModal({
   const [status, setStatus] = useState<"paid" | "pending" | "failed">("paid");
   const [method, setMethod] = useState("");
   const [editReason, setEditReason] = useState("");
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [proofDeleteReason, setProofDeleteReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  const { data: proofs } = useQuery({
+    queryKey: queryKeys.paymentProofs(payment?.id ?? ""),
+    queryFn: () => api.listPaymentProofs(payment!.id),
+    enabled: !!payment,
+  });
 
   useEffect(() => {
     if (!payment) return;
@@ -595,6 +648,8 @@ export function EditPaymentModal({
     setStatus((payment.status ?? "paid") as "paid" | "pending" | "failed");
     setMethod(payment.method ?? "");
     setEditReason("");
+    setProofFile(null);
+    setProofDeleteReason("");
     let ps = payment.periodStartDate?.slice(0, 10) ?? "";
     let pe = payment.periodEndDate?.slice(0, 10) ?? "";
     if ((!ps || !pe) && payment.month) {
@@ -629,6 +684,27 @@ export function EditPaymentModal({
       await qc.invalidateQueries({ queryKey: queryKeys.outstanding(currentMonth()) });
       toast.success("Payment updated");
       onClose();
+    },
+    onError: (e: unknown) => setError(getErrorMessage(e)),
+  });
+
+  const uploadProofMutation = useMutation({
+    mutationFn: () => api.uploadPaymentProof(payment!.id, proofFile!),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.paymentProofs(payment!.id) });
+      setProofFile(null);
+      toast.success("Payment proof uploaded");
+    },
+    onError: (e: unknown) => setError(getErrorMessage(e)),
+  });
+
+  const deleteProofMutation = useMutation({
+    mutationFn: (proofId: string) =>
+      api.deletePaymentProof(payment!.id, proofId, proofDeleteReason.trim() || undefined),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: queryKeys.paymentProofs(payment!.id) });
+      setProofDeleteReason("");
+      toast.success("Payment proof removed");
     },
     onError: (e: unknown) => setError(getErrorMessage(e)),
   });
@@ -760,6 +836,95 @@ export function EditPaymentModal({
             onChange={(e) => setEditReason(e.target.value)}
             placeholder="e.g. Tenant paid late fees separately; corrected period end date."
           />
+        </div>
+        <div className="space-y-2 rounded-xl border border-border p-3">
+          <div>
+            <label className="text-xs font-medium text-muted" htmlFor="edit-payment-proof">
+              Attach additional proof
+            </label>
+            <input
+              id="edit-payment-proof"
+              type="file"
+              accept=".pdf,image/png,image/jpeg"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-main-blue/30 focus:ring-2 file:mr-3 file:rounded-md file:border-0 file:bg-main-blue file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white"
+              onChange={(e) => setProofFile(e.target.files?.[0] ?? null)}
+            />
+            <p className="mt-1 text-[11px] text-muted">PDF, JPG, PNG only (max 5 MB).</p>
+            <div className="mt-2 flex items-center gap-2">
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={!proofFile || uploadProofMutation.isPending}
+                onClick={() => {
+                  if (!proofFile) return;
+                  if (!ALLOWED_PROOF_MIME.includes(proofFile.type)) {
+                    setError("Only PDF, JPG, and PNG files are allowed as payment proof.");
+                    return;
+                  }
+                  if (proofFile.size > 5_000_000) {
+                    setError("Payment proof must be 5 MB or smaller.");
+                    return;
+                  }
+                  setError(null);
+                  uploadProofMutation.mutate();
+                }}
+              >
+                {uploadProofMutation.isPending ? "Uploading…" : "Upload proof"}
+              </Button>
+              {proofFile ? (
+                <span className="text-xs text-muted">
+                  {proofFile.name} ({formatFileSize(proofFile.size)})
+                </span>
+              ) : null}
+            </div>
+          </div>
+          <div className="space-y-2 pt-1">
+            <label className="text-xs font-medium text-muted">Existing proofs</label>
+            {(proofs ?? []).length === 0 ? (
+              <p className="text-xs text-muted">No proof file uploaded for this payment yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {(proofs ?? []).map((proof) => (
+                  <div key={proof.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted-bg/40 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-medium text-foreground">{proof.fileName}</p>
+                      <p className="text-[11px] text-muted">
+                        {formatFileSize(proof.fileSizeBytes)} · {new Date(proof.uploadedAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted transition hover:bg-muted-bg hover:text-foreground"
+                        onClick={() => {
+                          void api
+                            .downloadPaymentProof(payment!.id, proof.id, proof.fileName)
+                            .catch((e) => setError(getErrorMessage(e)));
+                        }}
+                      >
+                        Download
+                      </button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={deleteProofMutation.isPending}
+                        onClick={() => deleteProofMutation.mutate(proof.id)}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <textarea
+                  rows={2}
+                  className="w-full resize-y rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none ring-main-blue/30 focus:ring-2"
+                  value={proofDeleteReason}
+                  onChange={(e) => setProofDeleteReason(e.target.value)}
+                  placeholder="Optional reason when removing a proof (saved in audit)."
+                />
+              </div>
+            )}
+          </div>
         </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="flex justify-end gap-2 pt-2">

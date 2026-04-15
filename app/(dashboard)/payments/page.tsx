@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CalendarRange, Filter, Receipt } from "lucide-react";
 import { EditPaymentModal, RecordPaymentModal } from "@/components/dashboard/quick-dialogs";
@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RowActions } from "@/components/ui/row-actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { api, getErrorMessage } from "@/lib/api";
 import {
   currentMonth,
@@ -19,7 +20,7 @@ import {
   paymentCoverageLabel,
 } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
-import type { Payment } from "@/lib/types";
+import type { Payment, PaymentProof } from "@/lib/types";
 import { toast } from "sonner";
 
 type FilterKey = "all" | "paid" | "unpaid" | "partial";
@@ -32,7 +33,11 @@ function PaymentsInner() {
   const [page, setPage] = useState(1);
   const [recordOpen, setRecordOpen] = useState(!!leaseFromUrl);
   const [editPayment, setEditPayment] = useState<(Payment & { leaseLabel: string }) | null>(null);
+  const [viewPayment, setViewPayment] = useState<(Payment & { leaseLabel: string }) | null>(null);
   const [deletePayment, setDeletePayment] = useState<(Payment & { leaseLabel: string }) | null>(null);
+  const [attachmentProof, setAttachmentProof] = useState<PaymentProof | null>(null);
+  const [attachmentPreviewUrl, setAttachmentPreviewUrl] = useState<string | null>(null);
+  const [attachmentLoading, setAttachmentLoading] = useState(false);
 
   const initialRange = useMemo(() => monthRangeLastN(12), []);
   const [appliedFrom, setAppliedFrom] = useState(initialRange.from);
@@ -50,6 +55,24 @@ function PaymentsInner() {
     queryKey: queryKeys.leases,
     queryFn: () => api.listLeases(),
   });
+  const { data: paymentDetail } = useQuery({
+    queryKey: ["payments", "detail", viewPayment?.id ?? ""],
+    queryFn: () => api.getPayment(viewPayment!.id),
+    enabled: !!viewPayment,
+  });
+  const { data: paymentProofs } = useQuery({
+    queryKey: queryKeys.paymentProofs(viewPayment?.id ?? ""),
+    queryFn: () => api.listPaymentProofs(viewPayment!.id),
+    enabled: !!viewPayment,
+  });
+
+  useEffect(() => {
+    return () => {
+      if (attachmentPreviewUrl) {
+        URL.revokeObjectURL(attachmentPreviewUrl);
+      }
+    };
+  }, [attachmentPreviewUrl]);
 
   const rentByLease = useMemo(() => {
     const m = new Map<string, number>();
@@ -136,6 +159,162 @@ function PaymentsInner() {
   return (
     <div className="w-full min-w-0 max-w-full space-y-5 sm:space-y-8">
       <EditPaymentModal payment={editPayment} onClose={() => setEditPayment(null)} />
+      <Modal
+        open={!!viewPayment}
+        onClose={() => setViewPayment(null)}
+        title="Payment details"
+        description="Review coverage, creator metadata, and proof attachments."
+        size="lg"
+      >
+        {!paymentDetail ? (
+          <p className="text-sm text-muted">Loading payment details…</p>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid gap-3 rounded-xl border border-border bg-muted-bg/50 p-4 sm:grid-cols-2">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Amount</p>
+                <p className="mt-0.5 text-sm font-semibold text-main-green">{formatMoney(paymentDetail.amount)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Status</p>
+                <p className="mt-0.5 text-sm capitalize text-foreground">{paymentDetail.status}</p>
+              </div>
+              <div className="sm:col-span-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Lease</p>
+                <p className="mt-0.5 text-sm text-foreground">
+                  {paymentDetail.lease?.unit?.asset.name ?? "Asset"}
+                  {paymentDetail.lease?.unit?.name ? ` · ${paymentDetail.lease.unit.name}` : ""}
+                  {paymentDetail.lease?.tenant?.name ? ` · ${paymentDetail.lease.tenant.name}` : ""}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Coverage</p>
+                <p className="mt-0.5 text-sm text-foreground">{paymentCoverageLabel(paymentDetail)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Method</p>
+                <p className="mt-0.5 text-sm text-foreground">{paymentDetail.method ?? "—"}</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Audit details</p>
+              <div className="mt-2 space-y-1.5 text-sm">
+                <p className="text-foreground">
+                  Created by:{" "}
+                  <span className="font-medium">
+                    {paymentDetail.createdBy?.name ?? paymentDetail.recordedByUserId ?? "Unknown"}
+                  </span>
+                  {paymentDetail.createdBy?.role ? (
+                    <span className="ml-1 capitalize text-muted">({paymentDetail.createdBy.role})</span>
+                  ) : null}
+                </p>
+                <p className="text-muted">
+                  Recorded at:{" "}
+                  {paymentDetail.recordedAt
+                    ? new Date(paymentDetail.recordedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+                    : "—"}
+                </p>
+                <p className="text-foreground">
+                  Last edited by:{" "}
+                  <span className="font-medium">
+                    {paymentDetail.lastEditedBy?.name ?? paymentDetail.lastEditedByUserId ?? "—"}
+                  </span>
+                </p>
+                <p className="text-muted">
+                  Last edited at:{" "}
+                  {paymentDetail.lastEditedAt
+                    ? new Date(paymentDetail.lastEditedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+                    : "—"}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border p-4">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Attachments</p>
+                <span className="text-xs text-muted">{paymentProofs?.length ?? 0} file(s)</span>
+              </div>
+              {(paymentProofs ?? []).length === 0 ? (
+                <p className="mt-2 text-sm text-muted">No proof of payment attached.</p>
+              ) : (
+                <div className="mt-2 space-y-2">
+                  {(paymentProofs ?? []).map((proof) => (
+                    <div key={proof.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted-bg/40 px-3 py-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-medium text-foreground">{proof.fileName}</p>
+                        <p className="text-[11px] text-muted">
+                          {new Date(proof.uploadedAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        className="rounded-md border border-border px-2 py-1 text-xs font-medium text-muted transition hover:bg-muted-bg hover:text-foreground"
+                        onClick={async () => {
+                          try {
+                            setAttachmentLoading(true);
+                            const blob = await api.getPaymentProofBlob(viewPayment!.id, proof.id);
+                            if (attachmentPreviewUrl) URL.revokeObjectURL(attachmentPreviewUrl);
+                            const url = URL.createObjectURL(blob);
+                            setAttachmentPreviewUrl(url);
+                            setAttachmentProof(proof);
+                          } catch (e) {
+                            toast.error(getErrorMessage(e));
+                          } finally {
+                            setAttachmentLoading(false);
+                          }
+                        }}
+                      >
+                        {attachmentLoading && attachmentProof?.id === proof.id ? "Opening…" : "Open attachment"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
+      {attachmentProof && attachmentPreviewUrl ? (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm">
+          <button
+            type="button"
+            className="absolute inset-0"
+            aria-label="Close attachment preview"
+            onClick={() => {
+              URL.revokeObjectURL(attachmentPreviewUrl);
+              setAttachmentPreviewUrl(null);
+              setAttachmentProof(null);
+            }}
+          />
+          <div className="relative z-10 flex h-[85vh] w-full max-w-4xl flex-col rounded-xl border border-border bg-card shadow-2xl">
+            <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+              <div>
+                <p className="text-sm font-semibold text-foreground">{attachmentProof.fileName}</p>
+                <p className="text-xs text-muted">Proof attachment preview</p>
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  URL.revokeObjectURL(attachmentPreviewUrl);
+                  setAttachmentPreviewUrl(null);
+                  setAttachmentProof(null);
+                }}
+              >
+                Close
+              </Button>
+            </div>
+            <div className="min-h-0 flex-1 p-3">
+              {attachmentProof.contentType === "application/pdf" ? (
+                <iframe title="Proof preview" src={attachmentPreviewUrl} className="h-full w-full rounded-lg border border-border" />
+              ) : (
+                <img src={attachmentPreviewUrl} alt={attachmentProof.fileName} className="h-full w-full rounded-lg object-contain" />
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
       <ConfirmDialog
         open={!!deletePayment}
         onClose={() => setDeletePayment(null)}
@@ -290,6 +469,9 @@ function PaymentsInner() {
                 <p className="mt-1 truncate text-xs text-muted">{p.leaseLabel}</p>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
                   <span className="font-medium text-foreground">{paymentCoverageLabel(p)}</span>
+                  <span className={p.proofCount ? "font-medium text-main-green" : ""}>
+                    {p.proofCount ? `${p.proofCount} proof${p.proofCount === 1 ? "" : "s"}` : "No proof"}
+                  </span>
                   {p.month ? (
                     <span className="text-[10px] text-muted">ref. {p.month}</span>
                   ) : null}
@@ -301,7 +483,7 @@ function PaymentsInner() {
               </div>
               <div className="shrink-0">
                 <RowActions
-                  onView={() => (window.location.href = `/leases#${p.leaseId}`)}
+                  onView={() => setViewPayment(p)}
                   onEdit={() => setEditPayment(p)}
                   onDelete={() => setDeletePayment(p)}
                 />
@@ -320,6 +502,7 @@ function PaymentsInner() {
               <th className="whitespace-nowrap px-4 py-3">Coverage</th>
               <th className="whitespace-nowrap px-4 py-3">Amount</th>
               <th className="whitespace-nowrap px-4 py-3">Method</th>
+              <th className="whitespace-nowrap px-4 py-3">Proof</th>
               <th className="whitespace-nowrap px-4 py-3">Lease</th>
               <th className="whitespace-nowrap px-4 py-3">Status</th>
               <th className="whitespace-nowrap px-4 py-3 text-right">Actions</th>
@@ -328,7 +511,7 @@ function PaymentsInner() {
           <tbody className="divide-y divide-border">
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted">
+                <td colSpan={8} className="px-4 py-10 text-center text-sm text-muted">
                   Loading payment history…
                 </td>
               </tr>
@@ -353,6 +536,17 @@ function PaymentsInner() {
                   <td className="whitespace-nowrap px-4 py-3.5 text-muted">
                     {p.method ?? "—"}
                   </td>
+                  <td className="whitespace-nowrap px-4 py-3.5">
+                    {p.proofCount ? (
+                      <span className="inline-flex items-center rounded-full bg-main-green/10 px-2 py-0.5 text-xs font-medium text-main-green">
+                        {p.proofCount} attached
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center rounded-full bg-muted-bg px-2 py-0.5 text-xs text-muted">
+                        None
+                      </span>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-muted">{p.leaseLabel}</td>
                   <td className="whitespace-nowrap px-4 py-3.5">
                     <span className="inline-flex items-center gap-1 rounded-full bg-muted-bg px-2 py-0.5 text-xs font-medium capitalize text-foreground">
@@ -362,7 +556,7 @@ function PaymentsInner() {
                   </td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-right">
                     <RowActions
-                      onView={() => (window.location.href = `/leases#${p.leaseId}`)}
+                      onView={() => setViewPayment(p)}
                       onEdit={() => setEditPayment(p)}
                       onDelete={() => setDeletePayment(p)}
                     />
@@ -371,7 +565,7 @@ function PaymentsInner() {
               ))
             ) : (
               <tr>
-                <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted">
+                <td colSpan={8} className="px-4 py-10 text-center text-sm text-muted">
                   No payments match this filter in the selected range.
                 </td>
               </tr>

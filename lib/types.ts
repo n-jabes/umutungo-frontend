@@ -118,9 +118,33 @@ export type Payment = {
   lastEditedByUserId?: string | null;
   lastEditedAt?: string | null;
   editReason?: string | null;
+  proofCount?: number;
   lease?: Lease & {
     unit?: { name: string | null; asset: { id: string; name: string } };
   };
+};
+
+export type PaymentDetail = Payment & {
+  createdBy?: { id: string; name: string; role: "owner" | "admin" | "agent" } | null;
+  lastEditedBy?: { id: string; name: string; role: "owner" | "admin" | "agent" } | null;
+  lease?: Lease & {
+    unit?: { name: string | null; asset: { id: string; name: string } };
+    tenant?: { id: string; name: string } | null;
+  };
+};
+
+export type PaymentProof = {
+  id: string;
+  paymentId: string;
+  fileName: string;
+  contentType: string;
+  fileSizeBytes: number;
+  sha256: string;
+  status: "active" | "deleted";
+  uploadedByUserId: string | null;
+  uploadedAt: string;
+  deletedAt: string | null;
+  deleteReason: string | null;
 };
 
 /** `GET /leases/:id/coverage` — anniversary billing from lease start (Module 2). */

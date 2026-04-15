@@ -22,6 +22,8 @@ import type {
   UserPublic,
   AgentCreateResult,
   PaginatedAuditLogs,
+  PaymentProof,
+  PaymentDetail,
 } from "./types";
 
 export function getAccessToken(): string | null {
@@ -435,6 +437,57 @@ export const api = {
   async paymentsByLease(leaseId: string) {
     const { data } = await rawApi.get<Ok<Payment[]>>(`/payments/lease/${leaseId}`);
     return unwrap(data);
+  },
+
+  async getPayment(id: string) {
+    const { data } = await rawApi.get<Ok<PaymentDetail>>(`/payments/${id}`);
+    return unwrap(data);
+  },
+
+  async listPaymentProofs(paymentId: string) {
+    const { data } = await rawApi.get<Ok<PaymentProof[]>>(`/payments/${paymentId}/proofs`);
+    return unwrap(data);
+  },
+
+  async uploadPaymentProof(paymentId: string, file: File) {
+    const form = new FormData();
+    form.append("proof", file);
+    const { data } = await rawApi.post<Ok<PaymentProof>>(`/payments/${paymentId}/proofs/upload`, form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return unwrap(data);
+  },
+
+  async deletePaymentProof(paymentId: string, proofId: string, reason?: string) {
+    const { data } = await rawApi.delete<Ok<{ deleted: boolean }>>(`/payments/${paymentId}/proofs/${proofId}`, {
+      data: reason?.trim() ? { reason: reason.trim() } : {},
+    });
+    return unwrap(data);
+  },
+
+  async downloadPaymentProof(paymentId: string, proofId: string, fallbackFileName?: string) {
+    const response = await rawApi.get(`/payments/${paymentId}/proofs/${proofId}/download`, {
+      responseType: "blob",
+    });
+    const blob = response.data as Blob;
+    const disposition = String(response.headers["content-disposition"] ?? "");
+    const headerName = disposition.match(/filename="?([^"]+)"?$/i)?.[1];
+    const fileName = decodeURIComponent(headerName ?? fallbackFileName ?? `payment-proof-${proofId}`);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  },
+
+  async getPaymentProofBlob(paymentId: string, proofId: string) {
+    const response = await rawApi.get(`/payments/${paymentId}/proofs/${proofId}/download`, {
+      responseType: "blob",
+    });
+    return response.data as Blob;
   },
 
   async income(month: string) {

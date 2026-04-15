@@ -20,4 +20,5 @@ export const queryKeys = {
   paymentSummaryRange: (from: string, to: string) =>
     ["payments", "summary-range", from, to] as const,
   paymentsLease: (leaseId: string) => ["payments", "lease", leaseId] as const,
+  paymentProofs: (paymentId: string) => ["payments", paymentId, "proofs"] as const,
 };

@@ -232,6 +232,7 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
   const [unitId, setUnitId] = useState("");
   const [tenantId, setTenantId] = useState("");
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState("");
   const [rent, setRent] = useState("");
   const [deposit, setDeposit] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -241,6 +242,7 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
     setUnitId("");
     setTenantId("");
     setStartDate(new Date().toISOString().slice(0, 10));
+    setEndDate("");
     setRent("");
     setDeposit("");
     setError(null);
@@ -265,6 +267,7 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
         unitId,
         tenantId: tenantId || undefined,
         startDate,
+        endDate: endDate || undefined,
         rentAmountAtTime: rentNorm,
         deposit: depNorm === "" ? undefined : depNorm,
       });
@@ -276,6 +279,7 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
       await qc.invalidateQueries({ queryKey: ["analytics"] });
       setUnitId("");
       setTenantId("");
+      setEndDate("");
       setRent("");
       setDeposit("");
       setError(null);
@@ -304,6 +308,10 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
           setError(null);
           if (!unitId) {
             setError("Select a unit.");
+            return;
+          }
+          if (endDate && endDate < startDate) {
+            setError("End date must be on or after the start date, or leave it empty for open-ended.");
             return;
           }
           const rentNorm = normalizeMoneyInput(rent);
@@ -358,7 +366,7 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
             ))}
           </select>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label className="text-xs font-medium text-muted">Start date</label>
             <input
@@ -368,6 +376,17 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
             />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted">End date (optional)</label>
+            <input
+              type="date"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              min={startDate}
+            />
+            <p className="mt-1 text-[11px] text-muted">Leave blank to keep lease open-ended.</p>
           </div>
           <div>
             <label className="text-xs font-medium text-muted">Rent amount</label>
