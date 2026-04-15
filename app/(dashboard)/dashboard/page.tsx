@@ -6,6 +6,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ArrowRight,
+  BarChart3,
   Building2,
   CheckCircle2,
   Circle,
@@ -44,6 +45,7 @@ import {
   monthRangeLastN,
 } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
+import { useCursorPagination } from "@/lib/use-cursor-pagination";
 
 function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -110,16 +112,60 @@ export default function DashboardPage() {
     queryKey: queryKeys.paymentSummary(month),
     queryFn: () => api.paymentSummary(month),
   });
-  const portfolioStatusQuery = useQuery({
-    queryKey: queryKeys.portfolioRentStatus(asOf),
-    queryFn: () => api.getPortfolioRentStatus({ asOf }),
+  const ownerRiskSummaryQuery = useQuery({
+    queryKey: ["analytics", "risk-summary", "owner", asOf],
+    queryFn: () => api.ownerRiskSummary({ asOf }),
   });
-  const portfolioStatusPreviousQuery = useQuery({
-    queryKey: queryKeys.portfolioRentStatus(previousAsOf),
-    queryFn: () => api.getPortfolioRentStatus({ asOf: previousAsOf }),
+  const ownerRiskSummaryPreviousQuery = useQuery({
+    queryKey: ["analytics", "risk-summary", "owner", previousAsOf],
+    queryFn: () => api.ownerRiskSummary({ asOf: previousAsOf }),
+  });
+  const chartRange = useMemo(() => monthRangeLastN(6), []);
+  const riskPagination = useCursorPagination(`${asOf}:${riskFilter}`);
+  const assetRiskPagination = useCursorPagination(asOf);
+  const agingPagination = useCursorPagination(asOf);
+  const qualityPagination = useCursorPagination(`${chartRange.from}:${chartRange.to}`);
+
+  const assetRiskCursor = assetRiskPagination.cursor;
+  const assetRiskSummaryQuery = useQuery({
+    queryKey: ["analytics", "risk-summary", "assets", asOf, assetRiskPagination.page, assetRiskCursor],
+    queryFn: () => api.assetRiskSummary({ asOf, cursor: assetRiskCursor, limit: 6 }),
+  });
+  const agingCursor = agingPagination.cursor;
+  const unpaidAgingQuery = useQuery({
+    queryKey: ["analytics", "unpaid-aging", asOf, agingPagination.page, agingCursor],
+    queryFn: () => api.unpaidAging({ asOf, cursor: agingCursor, limit: 8 }),
   });
 
-  const chartRange = useMemo(() => monthRangeLastN(6), []);
+  const managerQualityQuery = useQuery({
+    queryKey: [
+      "analytics",
+      "manager-quality",
+      chartRange.from,
+      chartRange.to,
+      qualityPagination.page,
+      qualityPagination.cursor,
+    ],
+    queryFn: () =>
+      api.managerReportingQuality({
+        from: chartRange.from,
+        to: chartRange.to,
+        cursor: qualityPagination.cursor,
+        limit: 8,
+      }),
+    enabled: user?.role !== "agent",
+  });
+  const riskCursor = riskPagination.cursor;
+  const riskDrillDownQuery = useQuery({
+    queryKey: ["analytics", "risk-drill-down", asOf, riskFilter, riskPagination.page, riskCursor],
+    queryFn: () =>
+      api.riskDrillDown({
+        asOf,
+        status: riskFilter === "all" ? undefined : riskFilter,
+        cursor: riskCursor,
+        limit: 8,
+      }),
+  });
   const incomeSeries = useQuery({
     queryKey: queryKeys.incomeSeries(chartRange.from, chartRange.to),
     queryFn: () => api.incomeSeries(chartRange.from, chartRange.to),
@@ -205,13 +251,9 @@ export default function DashboardPage() {
       return end >= now && end <= inThirty;
     });
   }, [leasesQuery.data]);
-  const riskCounts = portfolioStatusQuery.data?.counts;
-  const previousRiskCounts = portfolioStatusPreviousQuery.data?.counts;
-  const riskRows = useMemo(() => {
-    const rows = portfolioStatusQuery.data?.units ?? [];
-    if (riskFilter === "all") return rows;
-    return rows.filter((row) => row.rentStatus === riskFilter);
-  }, [portfolioStatusQuery.data?.units, riskFilter]);
+  const riskCounts = ownerRiskSummaryQuery.data?.totals;
+  const previousRiskCounts = ownerRiskSummaryPreviousQuery.data?.totals;
+  const riskRows = riskDrillDownQuery.data?.items ?? [];
 
   if (workspace !== "rental") {
     return (
@@ -518,7 +560,7 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {riskRows.slice(0, 8).map((row) => (
+                {riskRows.map((row) => (
                   <tr key={row.unitId}>
                     <td className="py-2.5">
                       <p className="font-medium text-foreground">{row.assetName}</p>
@@ -548,7 +590,7 @@ export default function DashboardPage() {
                     </td>
                   </tr>
                 ))}
-                {riskRows.length === 0 ? (
+                {!riskDrillDownQuery.isLoading && riskRows.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="py-6 text-center text-sm text-muted">
                       No units in this filter.
@@ -558,13 +600,248 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
-          {portfolioStatusQuery.data?.units && portfolioStatusQuery.data.units.length > 8 ? (
-            <p className="mt-3 text-xs text-muted">
-              Showing first 8 units. Open full portfolio view for complete list.
+          <div className="mt-3 flex items-center justify-between">
+            <p className="text-xs text-muted">
+              {riskDrillDownQuery.isLoading
+                ? "Loading risk rows..."
+                : `Page ${riskPagination.page}${riskFilter !== "all" ? ` · ${riskFilter}` : ""}`}
             </p>
-          ) : null}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={riskPagination.goPrev}
+                disabled={!riskPagination.canPrev}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() => riskPagination.goNext(riskDrillDownQuery.data?.nextCursor)}
+                disabled={!riskDrillDownQuery.data?.nextCursor}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </Card>
       </section>
+
+      <section className="grid gap-6 xl:grid-cols-3">
+        <Card className="p-5 xl:col-span-2">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Risk summary by asset</p>
+              <p className="text-xs text-muted">Defensible risk ranking for owner decisions.</p>
+            </div>
+            <BarChart3 className="h-4 w-4 text-muted" />
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead className="text-xs uppercase tracking-wide text-muted">
+                <tr>
+                  <th className="py-2">Asset</th>
+                  <th className="py-2">Risk units</th>
+                  <th className="py-2">Risk rate</th>
+                  <th className="py-2">Counts (P/L/C/V)</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {(assetRiskSummaryQuery.data?.items ?? []).map((row) => (
+                  <tr key={row.assetId}>
+                    <td className="py-2.5 font-medium text-foreground">{row.assetName}</td>
+                    <td className="py-2.5 tabular-nums-fin">{row.riskUnits}</td>
+                    <td className="py-2.5 tabular-nums-fin">{formatPercent(row.riskRate)}</td>
+                    <td className="py-2.5 text-xs text-muted tabular-nums-fin">
+                      {row.counts.paid}/{row.counts.late}/{row.counts.critical}/{row.counts.vacant}
+                    </td>
+                  </tr>
+                ))}
+                {(assetRiskSummaryQuery.data?.items?.length ?? 0) === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-6 text-center text-sm text-muted">
+                      No asset risk data available.
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={assetRiskPagination.goPrev}
+              disabled={!assetRiskPagination.canPrev}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-xs text-muted">
+              Page {assetRiskPagination.page}
+            </span>
+            <button
+              type="button"
+              onClick={() => assetRiskPagination.goNext(assetRiskSummaryQuery.data?.nextCursor)}
+              disabled={!assetRiskSummaryQuery.data?.nextCursor}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Unpaid aging buckets</p>
+              <p className="text-xs text-muted">0-30, 31-60, and 61+ day risk split.</p>
+            </div>
+            <ShieldAlert className="h-4 w-4 text-muted" />
+          </div>
+          <div className="mt-4 space-y-2">
+            <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+              <span className="text-muted">0-30 days</span>
+              <span className="float-right font-semibold tabular-nums-fin">
+                {unpaidAgingQuery.data?.bucketCounts["0-30"] ?? 0}
+              </span>
+            </div>
+            <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+              <span className="text-muted">31-60 days</span>
+              <span className="float-right font-semibold tabular-nums-fin">
+                {unpaidAgingQuery.data?.bucketCounts["31-60"] ?? 0}
+              </span>
+            </div>
+            <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
+              <span className="text-muted">61+ days</span>
+              <span className="float-right font-semibold tabular-nums-fin">
+                {unpaidAgingQuery.data?.bucketCounts["61+"] ?? 0}
+              </span>
+            </div>
+          </div>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full min-w-[320px] text-left text-xs">
+              <thead className="text-muted">
+                <tr>
+                  <th className="py-1.5">Unit</th>
+                  <th className="py-1.5">Bucket</th>
+                  <th className="py-1.5 text-right">Overdue</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {(unpaidAgingQuery.data?.items ?? []).slice(0, 5).map((row) => (
+                  <tr key={row.unitId}>
+                    <td className="py-2 text-foreground">{row.unitName ?? "Unnamed"}</td>
+                    <td className="py-2 text-muted">{row.bucket}</td>
+                    <td className="py-2 text-right tabular-nums-fin">{row.overdueDays}d</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="mt-3 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={agingPagination.goPrev}
+              disabled={!agingPagination.canPrev}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <span className="text-xs text-muted">
+              Page {agingPagination.page}
+            </span>
+            <button
+              type="button"
+              onClick={() => agingPagination.goNext(unpaidAgingQuery.data?.nextCursor)}
+              disabled={!unpaidAgingQuery.data?.nextCursor}
+              className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+        </Card>
+      </section>
+
+      {user?.role !== "agent" ? (
+        <section>
+          <Card className="p-5">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h3 className="text-base font-semibold text-foreground">Manager reporting quality</h3>
+                <p className="text-xs text-muted">
+                  Period: {chartRange.from} to {chartRange.to}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[760px] text-left text-sm">
+                <thead className="text-xs uppercase tracking-wide text-muted">
+                  <tr>
+                    <th className="py-2">Manager</th>
+                    <th className="py-2 text-right">Recorded</th>
+                    <th className="py-2 text-right">Proof coverage</th>
+                    <th className="py-2 text-right">Edit rate</th>
+                    <th className="py-2 text-right">Reason-on-edit</th>
+                    <th className="py-2 text-right">Avg proof delay</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {(managerQualityQuery.data?.items ?? []).map((row) => (
+                    <tr key={row.managerId}>
+                      <td className="py-2.5">
+                        <p className="font-medium text-foreground">{row.managerName}</p>
+                        <p className="text-xs capitalize text-muted">{row.managerRole}</p>
+                      </td>
+                      <td className="py-2.5 text-right tabular-nums-fin">{row.totals.paymentsRecorded}</td>
+                      <td className="py-2.5 text-right tabular-nums-fin">
+                        {formatPercent(row.indicators.proofCoverageRate)}
+                      </td>
+                      <td className="py-2.5 text-right tabular-nums-fin">{formatPercent(row.indicators.editRate)}</td>
+                      <td className="py-2.5 text-right tabular-nums-fin">
+                        {formatPercent(row.indicators.reasonProvidedRateOnEdited)}
+                      </td>
+                      <td className="py-2.5 text-right tabular-nums-fin">
+                        {row.indicators.avgProofDelayHours == null
+                          ? "—"
+                          : `${row.indicators.avgProofDelayHours.toFixed(1)}h`}
+                      </td>
+                    </tr>
+                  ))}
+                  {(managerQualityQuery.data?.items?.length ?? 0) === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-6 text-center text-sm text-muted">
+                        No manager quality data for this period.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-3 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={qualityPagination.goPrev}
+                disabled={!qualityPagination.canPrev}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <span className="text-xs text-muted">
+                Page {qualityPagination.page}
+              </span>
+              <button
+                type="button"
+                onClick={() => qualityPagination.goNext(managerQualityQuery.data?.nextCursor)}
+                disabled={!managerQualityQuery.data?.nextCursor}
+                className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+          </Card>
+        </section>
+      ) : null}
 
       <section className="grid gap-6 lg:grid-cols-3">
         <Card className="p-6 lg:col-span-2">

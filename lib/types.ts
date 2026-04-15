@@ -312,6 +312,124 @@ export type AssetPerformance = {
   }[];
 };
 
+export type OwnerRiskSummary = {
+  asOf: string;
+  policy: {
+    policyVersion: number;
+    criticalOverdueDays: number;
+  };
+  totals: {
+    vacant: number;
+    paid: number;
+    late: number;
+    critical: number;
+  };
+  totalUnits: number;
+};
+
+export type AssetRiskSummaryRow = {
+  assetId: string;
+  assetName: string;
+  counts: {
+    vacant: number;
+    paid: number;
+    late: number;
+    critical: number;
+  };
+  totalUnits: number;
+  riskUnits: number;
+  riskRate: number;
+};
+
+export type AssetRiskSummaryPage = {
+  asOf: string;
+  policy: {
+    policyVersion: number;
+    criticalOverdueDays: number;
+  };
+  items: AssetRiskSummaryRow[];
+  limit: number;
+  cursor: string | null;
+  nextCursor: string | null;
+};
+
+export type UnpaidAgingRow = {
+  assetId: string;
+  assetName: string;
+  unitId: string;
+  unitName: string | null;
+  leaseId: string | null;
+  overdueDays: number;
+  bucket: "0-30" | "31-60" | "61+";
+  statusReason: string;
+  nextUnpaidStartDate: string | null;
+};
+
+export type UnpaidAgingResponse = {
+  asOf: string;
+  assetIdFilter: string | null;
+  bucketCounts: {
+    "0-30": number;
+    "31-60": number;
+    "61+": number;
+  };
+  items: UnpaidAgingRow[];
+  limit: number;
+  cursor: string | null;
+  nextCursor: string | null;
+};
+
+export type ManagerReportingQualityRow = {
+  managerId: string;
+  managerName: string;
+  managerRole: "owner" | "admin" | "agent";
+  period: {
+    from: string;
+    to: string;
+  };
+  totals: {
+    paymentsRecorded: number;
+    paymentsWithProof: number;
+    paymentsEdited: number;
+  };
+  indicators: {
+    proofCoverageRate: number;
+    editRate: number;
+    reasonProvidedRateOnEdited: number;
+    avgProofDelayHours: number | null;
+  };
+};
+
+export type ManagerReportingQualityPage = {
+  period: {
+    from: string;
+    to: string;
+  };
+  items: ManagerReportingQualityRow[];
+  limit: number;
+  cursor: string | null;
+  nextCursor: string | null;
+};
+
+export type RiskDrillDownPage = {
+  asOf: string;
+  policy: {
+    policyVersion: number;
+    criticalOverdueDays: number;
+  };
+  assetIdFilter: string | null;
+  statusFilter: "PAID" | "LATE" | "CRITICAL" | "VACANT" | null;
+  limit: number;
+  cursor: string | null;
+  nextCursor: string | null;
+  items: Array<
+    RentStatusUnitRow & {
+      assetId: string;
+      assetName: string;
+    }
+  >;
+};
+
 export type MonthlyPaymentSummary = {
   month: string;
   totalAmount: number;

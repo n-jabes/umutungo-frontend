@@ -25,6 +25,11 @@ import type {
   PaginatedAuditLogs,
   PaymentProof,
   PaymentDetail,
+  OwnerRiskSummary,
+  AssetRiskSummaryPage,
+  UnpaidAgingResponse,
+  ManagerReportingQualityPage,
+  RiskDrillDownPage,
 } from "./types";
 
 export function getAccessToken(): string | null {
@@ -532,6 +537,40 @@ export const api = {
     const { data } = await rawApi.get<Ok<AssetPerformance>>("/analytics/asset-performance", {
       params: { month },
     });
+    return unwrap(data);
+  },
+
+  async ownerRiskSummary(params?: { asOf?: string }) {
+    const { data } = await rawApi.get<Ok<OwnerRiskSummary>>("/analytics/risk-summary/owner", { params });
+    return unwrap(data);
+  },
+
+  async assetRiskSummary(params?: { asOf?: string; cursor?: string; limit?: number }) {
+    const { data } = await rawApi.get<Ok<AssetRiskSummaryPage>>("/analytics/risk-summary/assets", { params });
+    return unwrap(data);
+  },
+
+  async unpaidAging(params?: { asOf?: string; assetId?: string; cursor?: string; limit?: number }) {
+    const { data } = await rawApi.get<Ok<UnpaidAgingResponse>>("/analytics/unpaid-aging", { params });
+    return unwrap(data);
+  },
+
+  async managerReportingQuality(params: { from: string; to: string; cursor?: string; limit?: number }) {
+    const { data } = await rawApi.get<Ok<ManagerReportingQualityPage>>(
+      "/analytics/manager-reporting-quality",
+      { params },
+    );
+    return unwrap(data);
+  },
+
+  async riskDrillDown(params?: {
+    asOf?: string;
+    assetId?: string;
+    status?: "PAID" | "LATE" | "CRITICAL" | "VACANT";
+    cursor?: string;
+    limit?: number;
+  }) {
+    const { data } = await rawApi.get<Ok<RiskDrillDownPage>>("/analytics/risk-drill-down", { params });
     return unwrap(data);
   },
 };
