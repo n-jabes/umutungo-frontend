@@ -19,7 +19,7 @@ import {
 } from "@/lib/decimal-input";
 import { formatMoney, paymentCoverageLabel } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
-import type { Lease, Payment } from "@/lib/types";
+import type { Lease } from "@/lib/types";
 
 export default function LeasesPage() {
   const qc = useQueryClient();
@@ -477,7 +477,8 @@ function ViewLeaseModal({
             <Button
               type="button"
               onClick={() => {
-                const { payments: _payments, ...lease } = data;
+                const lease = { ...data } as Lease & { payments?: unknown };
+                delete lease.payments;
                 onEdit(lease);
               }}
             >

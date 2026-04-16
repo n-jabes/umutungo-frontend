@@ -33,6 +33,8 @@ import { filterMoneyInput } from "@/lib/decimal-input";
 import { formatCompactMoney, formatMoney, formatPercent, monthRangeLastN } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import type { Asset, AssetValuation, Unit } from "@/lib/types";
+
+const EMPTY_UNIT_LIST: Unit[] = [];
 import { cn } from "@/lib/utils";
 
 const IncomeChart = dynamic(
@@ -144,7 +146,7 @@ export default function AssetDetailPage() {
       }),
     enabled: !!id,
   });
-  const units = unitsPaged?.items ?? [];
+  const units = useMemo(() => unitsPaged?.items ?? EMPTY_UNIT_LIST, [unitsPaged]);
   const { data: valuations } = useQuery({
     queryKey: queryKeys.assetValuations(id),
     queryFn: () => api.listAssetValuations(id),

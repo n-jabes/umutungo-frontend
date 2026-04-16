@@ -388,6 +388,7 @@ function PaymentsInner() {
               {attachmentProof.contentType === "application/pdf" ? (
                 <iframe title="Proof preview" src={attachmentPreviewUrl} className="h-full w-full rounded-lg border border-border" />
               ) : (
+                // eslint-disable-next-line @next/next/no-img-element -- ephemeral blob: URLs; next/image is a poor fit here
                 <img src={attachmentPreviewUrl} alt={attachmentProof.fileName} className="h-full w-full rounded-lg object-contain" />
               )}
             </div>
