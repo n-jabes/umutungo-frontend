@@ -61,16 +61,18 @@ export function AddUnitModal({
         rentAmount: rentAmount.trim() || undefined,
         status,
       }),
-    onSuccess: async () => {
-      // Asset detail uses `unitsPaged`; dashboard uses `units()`. Prefix-match all unit lists.
-      await qc.invalidateQueries({ queryKey: ["units"] });
-      await qc.invalidateQueries({ queryKey: queryKeys.assets });
-      await qc.invalidateQueries({ queryKey: queryKeys.leases });
-      await qc.invalidateQueries({ queryKey: queryKeys.occupancy });
-      await qc.invalidateQueries({ queryKey: ["analytics", "rent-status", "asset", assetId] });
-      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
+    onSuccess: () => {
       toast.success(preset === "whole" ? "Single unit created" : "Unit added");
       onClose();
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: ["units"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.assets }),
+        qc.invalidateQueries({ queryKey: queryKeys.leases }),
+        qc.invalidateQueries({ queryKey: queryKeys.leasesActive }),
+        qc.invalidateQueries({ queryKey: queryKeys.occupancy }),
+        qc.invalidateQueries({ queryKey: ["analytics", "rent-status", "asset", assetId] }),
+        qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot }),
+      ]);
     },
     onError: (e: unknown) => {
       const msg = getErrorMessage(e);

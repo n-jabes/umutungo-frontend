@@ -49,19 +49,18 @@ export function AddAssetModal({
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
-    mutationFn: () =>
-      api.createAsset({
+    mutationFn: () => {
+      const priceNorm = normalizeMoneyInput(purchasePrice.trim());
+      return api.createAsset({
         type,
         name: name.trim(),
         location: location.trim() || undefined,
-        purchasePrice: purchasePrice.trim() || undefined,
+        purchasePrice: priceNorm && isValidMoneyAmount(priceNorm) ? priceNorm : undefined,
         purchaseDate: purchaseDate || undefined,
         notes: notes.trim() || undefined,
-      }),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: queryKeys.assets });
-      await qc.invalidateQueries({ queryKey: ["analytics"] });
-      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
+      });
+    },
+    onSuccess: () => {
       setName("");
       setLocation("");
       setPurchasePrice("");
@@ -70,6 +69,12 @@ export function AddAssetModal({
       setError(null);
       toast.success("Asset created successfully");
       onClose();
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.assets }),
+        qc.invalidateQueries({ queryKey: ["analytics"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot }),
+        qc.invalidateQueries({ queryKey: ["units"] }),
+      ]);
     },
     onError: (e: unknown) => {
       const msg = getErrorMessage(e);
@@ -91,6 +96,11 @@ export function AddAssetModal({
         onSubmit={(e) => {
           e.preventDefault();
           setError(null);
+          const priceNorm = normalizeMoneyInput(purchasePrice.trim());
+          if (purchasePrice.trim() !== "" && !isValidMoneyAmount(priceNorm)) {
+            setError("Purchase price must be numeric (digits and at most one decimal point).");
+            return;
+          }
           mutation.mutate();
         }}
       >
@@ -131,9 +141,10 @@ export function AddAssetModal({
             <label className="text-xs font-medium text-muted">Purchase price (optional)</label>
             <input
               inputMode="decimal"
+              autoComplete="off"
               className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
               value={purchasePrice}
-              onChange={(e) => setPurchasePrice(e.target.value)}
+              onChange={(e) => setPurchasePrice(filterMoneyInput(e.target.value))}
               placeholder="0"
             />
           </div>

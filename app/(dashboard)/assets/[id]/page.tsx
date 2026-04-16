@@ -68,27 +68,31 @@ export default function AssetDetailPage() {
 
   const deleteUnitMutation = useMutation({
     mutationFn: (unitId: string) => api.deleteUnit(unitId),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["units"] });
-      await qc.invalidateQueries({ queryKey: queryKeys.occupancy });
-      await qc.invalidateQueries({ queryKey: queryKeys.leases });
-      await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
-      await qc.invalidateQueries({ queryKey: queryKeys.assets });
-      await qc.invalidateQueries({ queryKey: queryKeys.assetRentStatus(id, asOf) });
-      await qc.invalidateQueries({ queryKey: ["payments"] });
-      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
+    onSuccess: () => {
       toast.success("Unit deleted");
       setDeleteUnit(null);
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: ["units"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.occupancy }),
+        qc.invalidateQueries({ queryKey: queryKeys.leases }),
+        qc.invalidateQueries({ queryKey: queryKeys.leasesActive }),
+        qc.invalidateQueries({ queryKey: queryKeys.assets }),
+        qc.invalidateQueries({ queryKey: queryKeys.assetRentStatus(id, asOf) }),
+        qc.invalidateQueries({ queryKey: ["payments"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot }),
+      ]);
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
   const updateUnitMutation = useMutation({
     mutationFn: ({ unitId, name, rentAmount, status }: { unitId: string; name: string; rentAmount?: string; status?: Unit["status"] }) =>
       api.updateUnit(unitId, { name, rentAmount, status }),
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["units"] });
-      await qc.invalidateQueries({ queryKey: queryKeys.assetRentStatus(id, asOf) });
+    onSuccess: () => {
       toast.success("Unit updated");
+      void Promise.all([
+        qc.invalidateQueries({ queryKey: ["units"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.assetRentStatus(id, asOf) }),
+      ]);
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
@@ -285,7 +289,7 @@ export default function AssetDetailPage() {
         onConfirm={() => deleteUnit && deleteUnitMutation.mutate(deleteUnit.id)}
         title="Delete unit"
         description={`Delete "${deleteUnit?.name ?? "this unit"}"?`}
-        detail="All active leases and payment records tied to this unit will also be permanently deleted."
+        detail="All active leases and payment records tied to this unit will also be permanently deleted. If you delete the last remaining unit on this asset, a default whole-parcel / whole-property unit is created again so the asset stays leasable."
         isPending={deleteUnitMutation.isPending}
       />
       <EditAssetModal asset={editAsset} onClose={() => setEditAsset(null)} />
