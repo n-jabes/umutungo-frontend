@@ -689,9 +689,16 @@ export default function DashboardPage() {
                     <td className="py-2.5 tabular-nums-fin">{row.overdueDays}d</td>
                     <td className="py-2.5 text-xs text-muted">{row.statusReason}</td>
                     <td className="py-2.5 text-right">
-                      <Link href="/payments" className="text-xs font-medium text-main-blue hover:underline">
-                        Open payments
-                      </Link>
+                      {row.leaseId ? (
+                        <Link
+                          href={`/payments?lease=${encodeURIComponent(row.leaseId)}`}
+                          className="text-xs font-medium text-main-blue hover:underline"
+                        >
+                          Open payments
+                        </Link>
+                      ) : (
+                        <span className="text-xs text-muted">No lease</span>
+                      )}
                     </td>
                   </tr>
                 ))}

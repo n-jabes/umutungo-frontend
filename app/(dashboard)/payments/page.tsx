@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CalendarRange, Filter, Receipt } from "lucide-react";
@@ -32,9 +33,10 @@ function PaymentsInner() {
   const qc = useQueryClient();
   const searchParams = useSearchParams();
   const leaseFromUrl = searchParams.get("lease");
+  const leaseIdFilter = leaseFromUrl?.trim() ?? "";
   const [filter, setFilter] = useState<FilterKey>("all");
   const [page, setPage] = useState(1);
-  const [recordOpen, setRecordOpen] = useState(!!leaseFromUrl);
+  const [recordOpen, setRecordOpen] = useState(false);
   const [editPayment, setEditPayment] = useState<(Payment & { leaseLabel: string }) | null>(null);
   const [viewPayment, setViewPayment] = useState<(Payment & { leaseLabel: string }) | null>(null);
   const [deletePayment, setDeletePayment] = useState<(Payment & { leaseLabel: string }) | null>(null);
@@ -52,6 +54,12 @@ function PaymentsInner() {
   const { data: summary, isLoading, isError, error, refetch } = useQuery({
     queryKey: queryKeys.paymentSummaryRange(appliedFrom, appliedTo),
     queryFn: () => api.paymentSummaryRange(appliedFrom, appliedTo),
+  });
+
+  const { data: leaseForBanner } = useQuery({
+    queryKey: queryKeys.lease(leaseIdFilter),
+    queryFn: () => api.getLease(leaseIdFilter),
+    enabled: leaseIdFilter.length > 0,
   });
 
   const { data: paymentDetail } = useQuery({
@@ -97,25 +105,45 @@ function PaymentsInner() {
     });
   }, [summary?.obligations]);
 
+  const scopedPaymentRows = useMemo(() => {
+    if (!leaseIdFilter) return paymentRows;
+    return paymentRows.filter((p) => p.leaseId === leaseIdFilter);
+  }, [paymentRows, leaseIdFilter]);
+
+  const scopedObligationRows = useMemo(() => {
+    if (!leaseIdFilter) return obligationRows;
+    return obligationRows.filter((o) => o.leaseId === leaseIdFilter);
+  }, [obligationRows, leaseIdFilter]);
+
   const filtered = useMemo(() => {
     if (filter === "unpaid") {
-      return obligationRows
+      return scopedObligationRows
         .filter((o) => o.status === "unpaid")
         .map((payload): DisplayRow => ({ kind: "obligation", payload }));
     }
     if (filter === "partial") {
-      return obligationRows
+      return scopedObligationRows
         .filter((o) => o.status === "partial")
         .map((payload): DisplayRow => ({ kind: "obligation", payload }));
     }
-    return paymentRows
-      .filter((r) => {
-        const st = r.status.toLowerCase();
-        if (filter === "paid") return st === "paid";
-        return true;
-      })
-      .map((payload): DisplayRow => ({ kind: "payment", payload }));
-  }, [paymentRows, obligationRows, filter]);
+    if (filter === "paid") {
+      return scopedPaymentRows
+        .filter((r) => r.status.toLowerCase() === "paid")
+        .map((payload): DisplayRow => ({ kind: "payment", payload }));
+    }
+    /** "All": paid payments plus unpaid/partial obligations (same data the summary line counts). */
+    const obligationDisplay = scopedObligationRows.map((payload): DisplayRow => ({ kind: "obligation", payload }));
+    const paymentDisplay = scopedPaymentRows.map((payload): DisplayRow => ({ kind: "payment", payload }));
+    return [...obligationDisplay, ...paymentDisplay].sort((a, b) => {
+      const ta = a.kind === "payment" ? new Date(a.payload.paidAt).getTime() : new Date(a.payload.periodStartDate).getTime();
+      const tb = b.kind === "payment" ? new Date(b.payload.paidAt).getTime() : new Date(b.payload.periodStartDate).getTime();
+      return tb - ta;
+    });
+  }, [scopedPaymentRows, scopedObligationRows, filter]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, appliedFrom, appliedTo, leaseIdFilter]);
   const pageSize = 10;
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -344,6 +372,30 @@ function PaymentsInner() {
         </Button>
       </div>
 
+      {leaseIdFilter ? (
+        <Card className="border border-main-blue/20 bg-blue-soft/40 p-4 sm:p-5">
+          <p className="text-sm font-medium text-foreground">
+            Ledger scoped to this lease
+            {leaseForBanner
+              ? ` · ${leaseForBanner.unit?.asset.name ?? "Property"}${
+                  leaseForBanner.unit?.name ? ` · ${leaseForBanner.unit.name}` : ""
+                }${leaseForBanner.tenant?.name ? ` · ${leaseForBanner.tenant.name}` : ""}`
+              : null}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            Paid rows are payments in the month range above. Unpaid and partial rows are open rent periods for this
+            lease (same totals as the summary line). Use{" "}
+            <strong className="text-foreground">All</strong> to see both together.
+          </p>
+          <Link
+            href="/payments"
+            className="mt-3 inline-flex text-xs font-medium text-main-blue underline-offset-2 hover:underline"
+          >
+            Clear lease filter
+          </Link>
+        </Card>
+      ) : null}
+
       <Card className="space-y-4 border-border p-3 sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
@@ -467,7 +519,7 @@ function PaymentsInner() {
         <p className="text-sm text-muted xl:hidden">Loading payment history…</p>
       ) : paginated.length === 0 ? (
         <Card className="border-dashed p-8 text-center text-sm text-muted xl:hidden">
-          No payments match this filter in the selected range.
+          No rows match this filter in the selected range.
         </Card>
       ) : (
         <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card shadow-sm xl:hidden">
@@ -635,7 +687,7 @@ function PaymentsInner() {
             ) : (
               <tr>
                 <td colSpan={8} className="px-4 py-10 text-center text-sm text-muted">
-                  No payments match this filter in the selected range.
+                  No rows match this filter in the selected range.
                 </td>
               </tr>
             )}
@@ -644,7 +696,7 @@ function PaymentsInner() {
       </div>
       <div className="flex flex-col gap-3 text-sm text-muted sm:flex-row sm:items-center sm:justify-between">
         <p>
-          Showing {paginated.length} of {filtered.length} payments
+          Showing {paginated.length} of {filtered.length} row{filtered.length === 1 ? "" : "s"}
         </p>
         <div className="flex items-center justify-end gap-2">
           <button
