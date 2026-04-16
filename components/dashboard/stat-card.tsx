@@ -24,7 +24,7 @@ export function StatCard({
     neutral: "text-muted bg-muted-bg",
   };
   return (
-    <Card className="p-5">
+    <Card className="min-w-0 p-5">
       <CardContent className="p-0">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">

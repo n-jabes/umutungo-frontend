@@ -31,8 +31,8 @@ export function DashboardCursorTableFooter({
 }: CursorFooterProps) {
   const selectId = useId();
   return (
-    <div className="mt-3 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="mt-3 flex min-w-0 flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         <span className="text-xs text-muted">
           {isLoading ? "Loading…" : `Page ${page}`}
         </span>
@@ -55,7 +55,7 @@ export function DashboardCursorTableFooter({
           </button>
         </div>
       </div>
-      <div className="flex items-center gap-2 text-xs">
+      <div className="flex min-w-0 items-center gap-2 text-xs">
         <label htmlFor={selectId} className="shrink-0 text-muted">
           Rows per page
         </label>
@@ -67,7 +67,7 @@ export function DashboardCursorTableFooter({
             if (!Number.isFinite(n)) return;
             onPageSizeChange(n);
           }}
-          className="rounded-lg border border-border bg-background px-2 py-1.5 font-medium text-foreground outline-none ring-main-blue/25 focus:ring-2"
+          className="min-w-0 max-w-full rounded-lg border border-border bg-background px-2 py-1.5 font-medium text-foreground outline-none ring-main-blue/25 focus:ring-2"
         >
           {DASHBOARD_TABLE_PAGE_SIZES.map((n) => (
             <option key={n} value={String(n)}>
@@ -104,8 +104,8 @@ export function DashboardOffsetTableFooter({
   const canPrev = page > 1;
   const canNext = page < totalPages;
   return (
-    <div className="mt-3 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+    <div className="mt-3 flex min-w-0 flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-muted">
         <span>
           Page {page} of {totalPages}
           {totalItems > 0 ? ` · ${totalItems} total` : null}
@@ -129,7 +129,7 @@ export function DashboardOffsetTableFooter({
           </button>
         </div>
       </div>
-      <div className="flex items-center gap-2 text-xs">
+      <div className="flex min-w-0 items-center gap-2 text-xs">
         <label htmlFor={selectId} className="shrink-0 text-muted">
           Rows per page
         </label>
@@ -141,7 +141,7 @@ export function DashboardOffsetTableFooter({
             if (!Number.isFinite(n)) return;
             onPageSizeChange(n);
           }}
-          className="rounded-lg border border-border bg-background px-2 py-1.5 font-medium text-foreground outline-none ring-main-blue/25 focus:ring-2"
+          className="min-w-0 max-w-full rounded-lg border border-border bg-background px-2 py-1.5 font-medium text-foreground outline-none ring-main-blue/25 focus:ring-2"
         >
           {DASHBOARD_TABLE_PAGE_SIZES.map((n) => (
             <option key={n} value={String(n)}>

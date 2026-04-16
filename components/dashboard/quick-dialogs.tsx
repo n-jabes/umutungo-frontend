@@ -308,17 +308,20 @@ export function RecordPaymentModal({
       }
       return payment;
     },
-    onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: ["payments"] });
-      await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
-      await qc.invalidateQueries({ queryKey: ["analytics"] });
-      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
+    onSuccess: () => {
       setAmount("");
       setMethod("");
       setProofFile(null);
       setError(null);
       toast.success("Payment recorded");
       onClose();
+      // Do not await: invalidateQueries waits for active refetches, which blocked the modal
+      // (especially every dashboard query under ["analytics"]) for users entering many payments.
+      void qc.invalidateQueries({ queryKey: ["payments"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
+      void qc.invalidateQueries({ queryKey: queryKeys.leases });
+      void qc.invalidateQueries({ queryKey: ["analytics"] });
+      void qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
     },
     onError: (e: unknown) => {
       const msg = getErrorMessage(e);

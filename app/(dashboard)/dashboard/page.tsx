@@ -335,7 +335,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="space-y-10">
+    <div className="min-w-0 space-y-10">
       <header className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-muted">Overview</p>
@@ -483,7 +483,7 @@ export default function DashboardPage() {
         </Card>
       ) : null}
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Income (this month)"
           value={formatCompactMoney(incomeQuery.data?.totalIncome ?? 0)}
@@ -542,29 +542,34 @@ export default function DashboardPage() {
         />
       </section>
 
-      <section className="space-y-4">
-        <div className="flex items-end justify-between gap-3">
-          <div>
+      <section className="grid min-w-0 grid-cols-1 gap-4 [&>*]:min-w-0">
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0">
             <h2 className="text-xl font-semibold tracking-tight">Portfolio risk & performance</h2>
             <p className="text-sm text-muted">Color-coded rent health by active policy as of {asOf}.</p>
           </div>
-          <Link href="/portfolio" className="inline-flex items-center gap-1 text-sm font-medium text-main-blue hover:underline">
+          <Link
+            href="/portfolio"
+            className="inline-flex shrink-0 items-center gap-1 self-start text-sm font-medium text-main-blue hover:underline sm:self-auto"
+          >
             Full portfolio view
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <button
             type="button"
             onClick={() => setRiskFilter("PAID")}
-            className="rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
+            className="min-w-0 overflow-hidden rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
           >
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Units paid</p>
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+            <div className="flex items-center justify-between gap-2">
+              <p className="min-w-0 text-xs font-semibold uppercase tracking-wide text-emerald-700">Units paid</p>
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
             </div>
-            <p className="mt-3 text-3xl font-semibold tabular-nums-fin text-foreground">{riskCounts?.paid ?? "—"}</p>
-            <p className="mt-1 text-xs text-muted">
+            <p className="mt-3 truncate text-2xl font-semibold tabular-nums-fin text-foreground sm:text-3xl">
+              {riskCounts?.paid ?? "—"}
+            </p>
+            <p className="mt-1 break-words text-xs text-muted">
               {previousRiskCounts
                 ? `${(riskCounts?.paid ?? 0) - previousRiskCounts.paid >= 0 ? "+" : ""}${(riskCounts?.paid ?? 0) - previousRiskCounts.paid} vs 30d`
                 : "Trend loading..."}
@@ -573,14 +578,16 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={() => setRiskFilter("LATE")}
-            className="rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
+            className="min-w-0 overflow-hidden rounded-2xl border border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
           >
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Late</p>
-              <Timer className="h-4 w-4 text-amber-600" />
+            <div className="flex items-center justify-between gap-2">
+              <p className="min-w-0 text-xs font-semibold uppercase tracking-wide text-amber-700">Late</p>
+              <Timer className="h-4 w-4 shrink-0 text-amber-600" />
             </div>
-            <p className="mt-3 text-3xl font-semibold tabular-nums-fin text-foreground">{riskCounts?.late ?? "—"}</p>
-            <p className="mt-1 text-xs text-muted">
+            <p className="mt-3 truncate text-2xl font-semibold tabular-nums-fin text-foreground sm:text-3xl">
+              {riskCounts?.late ?? "—"}
+            </p>
+            <p className="mt-1 break-words text-xs text-muted">
               {previousRiskCounts
                 ? `${(riskCounts?.late ?? 0) - previousRiskCounts.late >= 0 ? "+" : ""}${(riskCounts?.late ?? 0) - previousRiskCounts.late} vs 30d`
                 : "Trend loading..."}
@@ -589,14 +596,16 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={() => setRiskFilter("CRITICAL")}
-            className="rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
+            className="min-w-0 overflow-hidden rounded-2xl border border-rose-200 bg-gradient-to-br from-rose-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
           >
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-rose-700">Critical</p>
-              <Flame className="h-4 w-4 text-rose-600" />
+            <div className="flex items-center justify-between gap-2">
+              <p className="min-w-0 text-xs font-semibold uppercase tracking-wide text-rose-700">Critical</p>
+              <Flame className="h-4 w-4 shrink-0 text-rose-600" />
             </div>
-            <p className="mt-3 text-3xl font-semibold tabular-nums-fin text-foreground">{riskCounts?.critical ?? "—"}</p>
-            <p className="mt-1 text-xs text-muted">
+            <p className="mt-3 truncate text-2xl font-semibold tabular-nums-fin text-foreground sm:text-3xl">
+              {riskCounts?.critical ?? "—"}
+            </p>
+            <p className="mt-1 break-words text-xs text-muted">
               {previousRiskCounts
                 ? `${(riskCounts?.critical ?? 0) - previousRiskCounts.critical >= 0 ? "+" : ""}${(riskCounts?.critical ?? 0) - previousRiskCounts.critical} vs 30d`
                 : "Trend loading..."}
@@ -605,27 +614,29 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={() => setRiskFilter("VACANT")}
-            className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
+            className="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 text-left shadow-sm transition hover:shadow-md"
           >
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-700">Vacant</p>
-              <Users className="h-4 w-4 text-slate-600" />
+            <div className="flex items-center justify-between gap-2">
+              <p className="min-w-0 text-xs font-semibold uppercase tracking-wide text-slate-700">Vacant</p>
+              <Users className="h-4 w-4 shrink-0 text-slate-600" />
             </div>
-            <p className="mt-3 text-3xl font-semibold tabular-nums-fin text-foreground">{riskCounts?.vacant ?? "—"}</p>
-            <p className="mt-1 text-xs text-muted">
+            <p className="mt-3 truncate text-2xl font-semibold tabular-nums-fin text-foreground sm:text-3xl">
+              {riskCounts?.vacant ?? "—"}
+            </p>
+            <p className="mt-1 break-words text-xs text-muted">
               {previousRiskCounts
                 ? `${(riskCounts?.vacant ?? 0) - previousRiskCounts.vacant >= 0 ? "+" : ""}${(riskCounts?.vacant ?? 0) - previousRiskCounts.vacant} vs 30d`
                 : "Trend loading..."}
             </p>
           </button>
         </div>
-        <Card className="p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
+        <Card className="min-w-0 p-5">
+          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground">Risk drill-down</p>
               <p className="text-xs text-muted">Focused unit list for portfolio follow-up.</p>
             </div>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex min-w-0 flex-wrap gap-1.5">
               {(["all", "PAID", "LATE", "CRITICAL", "VACANT"] as const).map((status) => (
                 <button
                   key={status}
@@ -642,7 +653,7 @@ export default function DashboardPage() {
               ))}
             </div>
           </div>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 min-w-0 overflow-x-auto">
             <table className="w-full min-w-[680px] text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-muted">
                 <tr>
@@ -710,16 +721,16 @@ export default function DashboardPage() {
         </Card>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-3">
-        <Card className="p-5 xl:col-span-2">
+      <section className="grid min-w-0 gap-6 xl:grid-cols-3">
+        <Card className="min-w-0 p-5 xl:col-span-2">
           <div className="flex items-center justify-between gap-3">
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground">Risk summary by asset</p>
               <p className="text-xs text-muted">Defensible risk ranking for owner decisions.</p>
             </div>
-            <BarChart3 className="h-4 w-4 text-muted" />
+            <BarChart3 className="h-4 w-4 shrink-0 text-muted" />
           </div>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 min-w-0 overflow-x-auto">
             <table className="w-full min-w-[560px] text-left text-sm">
               <thead className="text-xs uppercase tracking-wide text-muted">
                 <tr>
@@ -762,13 +773,13 @@ export default function DashboardPage() {
           />
         </Card>
 
-        <Card className="p-5">
+        <Card className="min-w-0 p-5">
           <div className="flex items-center justify-between gap-2">
-            <div>
+            <div className="min-w-0">
               <p className="text-sm font-semibold text-foreground">Unpaid aging buckets</p>
               <p className="text-xs text-muted">0-30, 31-60, and 61+ day risk split.</p>
             </div>
-            <ShieldAlert className="h-4 w-4 text-muted" />
+            <ShieldAlert className="h-4 w-4 shrink-0 text-muted" />
           </div>
           <div className="mt-4 space-y-2">
             <div className="rounded-lg border border-border bg-background px-3 py-2 text-sm">
@@ -790,7 +801,7 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 min-w-0 overflow-x-auto">
             <table className="w-full min-w-[320px] text-left text-xs">
               <thead className="text-muted">
                 <tr>
@@ -831,17 +842,17 @@ export default function DashboardPage() {
       </section>
 
       {user?.role !== "agent" ? (
-        <section>
-          <Card className="p-5">
+        <section className="grid min-w-0 grid-cols-1 gap-6">
+          <Card className="min-w-0 p-5">
             <div className="flex items-center justify-between gap-2">
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-base font-semibold text-foreground">Manager reporting quality</h3>
                 <p className="text-xs text-muted">
                   Period: {chartRange.from} to {chartRange.to}
                 </p>
               </div>
             </div>
-            <div className="mt-4 overflow-x-auto">
+            <div className="mt-4 min-w-0 overflow-x-auto">
               <table className="w-full min-w-[760px] text-left text-sm">
                 <thead className="text-xs uppercase tracking-wide text-muted">
                   <tr>
@@ -899,8 +910,8 @@ export default function DashboardPage() {
         </section>
       ) : null}
 
-      <section className="grid gap-6 lg:grid-cols-3">
-        <Card className="p-6 lg:col-span-2">
+      <section className="grid min-w-0 gap-6 lg:grid-cols-3">
+        <Card className="min-w-0 p-6 lg:col-span-2">
           <CardHeader className="p-0">
             <CardTitle>Income trajectory</CardTitle>
             <CardDescription>Six-month paid rent trend</CardDescription>
@@ -916,7 +927,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="p-6">
+        <Card className="min-w-0 p-6">
           <CardHeader className="p-0">
             <CardTitle>Alerts</CardTitle>
             <CardDescription>Items that need attention</CardDescription>
