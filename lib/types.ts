@@ -1,3 +1,13 @@
+export type OnboardingBootstrap = {
+  month: string;
+  hasAsset: boolean;
+  hasUnit: boolean;
+  hasTenant: boolean;
+  hasLease: boolean;
+  hasPayment: boolean;
+  complete: boolean;
+};
+
 export type UserPublic = {
   id: string;
   name: string;

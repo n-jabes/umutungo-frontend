@@ -61,6 +61,7 @@ export function AddAssetModal({
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.assets });
       await qc.invalidateQueries({ queryKey: ["analytics"] });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       setName("");
       setLocation("");
       setPurchasePrice("");
@@ -190,6 +191,7 @@ export function AddTenantModal({
       }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.tenants });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       setName("");
       setPhone("");
       setError(null);
@@ -310,6 +312,7 @@ export function RecordPaymentModal({
       await qc.invalidateQueries({ queryKey: ["payments"] });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: ["analytics"] });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       setAmount("");
       setMethod("");
       setProofFile(null);
@@ -560,6 +563,7 @@ export function EditTenantModal({
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.tenants });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       toast.success("Tenant updated");
       onClose();
     },
@@ -686,6 +690,7 @@ export function EditPaymentModal({
       await qc.invalidateQueries({ queryKey: ["payments"] });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: queryKeys.outstanding(currentMonth()) });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       if (payment?.id) {
         await qc.invalidateQueries({ queryKey: queryKeys.paymentProofs(payment.id) });
       }
@@ -953,6 +958,7 @@ export function EditLeaseModal({
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: queryKeys.outstanding(currentMonth()) });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       toast.success("Lease updated");
       onClose();
     },
@@ -1071,6 +1077,7 @@ export function EditAssetModal({
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.assets });
       await qc.invalidateQueries({ queryKey: ["analytics"] });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       toast.success("Asset updated");
       onClose();
     },

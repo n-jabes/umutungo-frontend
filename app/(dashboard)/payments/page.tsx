@@ -126,6 +126,7 @@ function PaymentsInner() {
       await qc.invalidateQueries({ queryKey: queryKeys.paymentSummary(currentMonth()) });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: queryKeys.outstanding(currentMonth()) });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       toast.success("Payment deleted");
       setDeletePayment(null);
     },

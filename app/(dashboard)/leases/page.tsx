@@ -56,6 +56,7 @@ export default function LeasesPage() {
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       toast.success("Lease ended successfully");
       setEndLease(null);
     },
@@ -277,6 +278,7 @@ function CreateLeaseModal({ open, onClose }: { open: boolean; onClose: () => voi
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: queryKeys.units() });
       await qc.invalidateQueries({ queryKey: ["analytics"] });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       setUnitId("");
       setTenantId("");
       setEndDate("");

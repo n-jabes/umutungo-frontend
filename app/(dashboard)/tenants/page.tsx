@@ -71,6 +71,7 @@ export default function TenantsPage() {
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: queryKeys.leasesActive });
       await qc.invalidateQueries({ queryKey: queryKeys.outstanding(month) });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       toast.success("Tenant deleted");
       setDeleteTenant(null);
     },

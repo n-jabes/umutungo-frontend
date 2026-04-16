@@ -66,6 +66,7 @@ export default function AssetsPage() {
       await qc.invalidateQueries({ queryKey: queryKeys.units() });
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: ["payments"] });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       toast.success("Asset deleted");
       setDeleteAsset(null);
     },

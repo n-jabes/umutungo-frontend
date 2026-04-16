@@ -1,5 +1,10 @@
+/** Prefix: invalidate all months after portfolio mutations */
+const onboardingRoot = ["auth", "me", "onboarding"] as const;
+
 export const queryKeys = {
   me: ["me"] as const,
+  onboardingRoot,
+  onboarding: (month: string) => [...onboardingRoot, month] as const,
   agents: ["users", "agents"] as const,
   users: ["users"] as const,
   auditLogs: ["audit", "logs"] as const,

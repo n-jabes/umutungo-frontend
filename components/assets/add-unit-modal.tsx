@@ -68,6 +68,7 @@ export function AddUnitModal({
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: queryKeys.occupancy });
       await qc.invalidateQueries({ queryKey: ["analytics", "rent-status", "asset", assetId] });
+      await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       toast.success(preset === "whole" ? "Single unit created" : "Unit added");
       onClose();
     },

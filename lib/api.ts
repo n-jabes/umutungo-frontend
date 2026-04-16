@@ -21,6 +21,7 @@ import type {
   UnitRentStatusResponse,
   AssetRentStatusResponse,
   UserPublic,
+  OnboardingBootstrap,
   AgentCreateResult,
   PaginatedAuditLogs,
   PaymentProof,
@@ -148,6 +149,13 @@ export const api = {
 
   async me() {
     const { data } = await rawApi.get<Ok<UserPublic>>("/auth/me");
+    return unwrap(data);
+  },
+
+  async getOnboarding(params?: { month?: string }) {
+    const { data } = await rawApi.get<Ok<OnboardingBootstrap>>("/auth/me/onboarding", {
+      params: params?.month ? { month: params.month } : undefined,
+    });
     return unwrap(data);
   },
 

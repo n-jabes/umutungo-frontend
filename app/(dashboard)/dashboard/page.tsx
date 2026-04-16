@@ -23,8 +23,9 @@ import {
   UserPlus,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
@@ -51,6 +52,10 @@ function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+function launchChecklistDismissStorageKey(userId: string) {
+  return `umutungo.launchChecklist.dismissed:${userId}`;
+}
+
 const IncomeChart = dynamic(
   () => import("@/components/charts/income-chart").then((m) => m.IncomeChart),
   {
@@ -70,6 +75,7 @@ export default function DashboardPage() {
   const [assetOpen, setAssetOpen] = useState(false);
   const [tenantOpen, setTenantOpen] = useState(false);
   const [payOpen, setPayOpen] = useState(false);
+  const [launchChecklistDismissed, setLaunchChecklistDismissed] = useState(false);
   const [riskFilter, setRiskFilter] = useState<"all" | "PAID" | "LATE" | "CRITICAL" | "VACANT">("all");
   const asOf = useMemo(() => toIsoDate(new Date()), []);
   const previousAsOf = useMemo(() => {
@@ -112,6 +118,39 @@ export default function DashboardPage() {
     queryKey: queryKeys.paymentSummary(month),
     queryFn: () => api.paymentSummary(month),
   });
+  const onboardingQuery = useQuery({
+    queryKey: queryKeys.onboarding(month),
+    queryFn: () => api.getOnboarding({ month }),
+    enabled: user?.role !== "agent",
+    staleTime: 60_000,
+  });
+
+  useLayoutEffect(() => {
+    if (!user?.id) {
+      setLaunchChecklistDismissed(false);
+      return;
+    }
+    try {
+      setLaunchChecklistDismissed(
+        typeof window !== "undefined" &&
+          localStorage.getItem(launchChecklistDismissStorageKey(user.id)) === "1",
+      );
+    } catch {
+      setLaunchChecklistDismissed(false);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || !onboardingQuery.data?.complete) return;
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(launchChecklistDismissStorageKey(user.id));
+      }
+    } catch {
+      /* ignore */
+    }
+    setLaunchChecklistDismissed(false);
+  }, [onboardingQuery.data?.complete, user?.id]);
   const ownerRiskSummaryQuery = useQuery({
     queryKey: ["analytics", "risk-summary", "owner", asOf],
     queryFn: () => api.ownerRiskSummary({ asOf }),
@@ -178,28 +217,36 @@ export default function DashboardPage() {
   }, [assetsQuery.data]);
 
   const vacantCount = occupancyQuery.data?.vacant ?? 0;
-  const hasAssets = (assetsQuery.data?.length ?? 0) > 0;
   const firstAssetId = assetsQuery.data?.[0]?.id;
-  const hasUnits = (unitsQuery.data?.length ?? 0) > 0;
-  const hasTenants = (tenantsQuery.data?.length ?? 0) > 0;
-  const hasPayments = (paymentsQuery.data?.count ?? 0) > 0;
-  const hasLeases = (leasesQuery.data?.length ?? 0) > 0;
-  /** Leases need a unit; payments need a lease — enforce unit before lease in onboarding. */
-  const onboardingDone = hasAssets && hasUnits && hasTenants && hasLeases && hasPayments;
-  const nextAction = !hasAssets
+  const launch = onboardingQuery.data;
+  const checklistHasAssets = launch?.hasAsset ?? false;
+  const checklistHasUnits = launch?.hasUnit ?? false;
+  const checklistHasTenants = launch?.hasTenant ?? false;
+  const checklistHasLeases = launch?.hasLease ?? false;
+  const checklistHasPayments = launch?.hasPayment ?? false;
+  const showLaunchChecklist =
+    user?.role !== "agent" &&
+    onboardingQuery.isSuccess &&
+    !!launch &&
+    !launch.complete &&
+    !launchChecklistDismissed;
+  const nextAction = !checklistHasAssets
     ? { href: "/assets", label: "Add your first property/asset" }
-    : !hasUnits
+    : !checklistHasUnits
       ? {
           href: firstAssetId ? `/assets/${firstAssetId}` : "/assets",
           label: "Add at least one unit (room, shop, etc.) under your property",
         }
-      : !hasTenants
+      : !checklistHasTenants
         ? { href: "/tenants", label: "Add your first tenant" }
-        : !hasLeases
+        : !checklistHasLeases
           ? { href: "/leases", label: "Create your first lease" }
-          : !hasPayments
+          : !checklistHasPayments
             ? { href: "/payments", label: "Record your first payment" }
             : null;
+  const hasPaymentsIntegrity = launch ? launch.hasPayment : (paymentsQuery.data?.count ?? 0) > 0;
+  const hasLeasesIntegrity = launch ? launch.hasLease : (leasesQuery.data?.length ?? 0) > 0;
+  const hasUnitsIntegrity = launch ? launch.hasUnit : (unitsQuery.data?.length ?? 0) > 0;
   const collectionRate =
     outstandingQuery.data && incomeQuery.data
       ? incomeQuery.data.totalIncome + outstandingQuery.data.outstanding > 0
@@ -217,6 +264,7 @@ export default function DashboardPage() {
     leasesQuery.dataUpdatedAt,
     tenantsQuery.dataUpdatedAt,
     unitsQuery.dataUpdatedAt,
+    onboardingQuery.dataUpdatedAt,
   );
   const dataDiscrepancies = useMemo(() => {
     const items: string[] = [];
@@ -226,17 +274,17 @@ export default function DashboardPage() {
     if ((outstandingQuery.data?.leasesWithBalance?.length ?? 0) > (leasesQuery.data?.length ?? 0)) {
       items.push("Overdue lease count exceeds loaded lease records.");
     }
-    if (hasPayments && !hasLeases) {
+    if (hasPaymentsIntegrity && !hasLeasesIntegrity) {
       items.push("Payments exist but no leases are loaded.");
     }
-    if (hasLeases && !hasUnits) {
+    if (hasLeasesIntegrity && !hasUnitsIntegrity) {
       items.push("Leases exist but no units are registered — add units under your properties.");
     }
     return items;
   }, [
-    hasLeases,
-    hasPayments,
-    hasUnits,
+    hasLeasesIntegrity,
+    hasPaymentsIntegrity,
+    hasUnitsIntegrity,
     leasesQuery.data,
     occupancyQuery.data,
     outstandingQuery.data?.leasesWithBalance?.length,
@@ -300,15 +348,35 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {user?.role !== "agent" && !onboardingDone ? (
-        <Card className="border-main-blue/20 bg-blue-soft/35 p-5">
+      {showLaunchChecklist ? (
+        <Card className="border border-accent-gold/50 bg-gold-soft p-5 shadow-sm">
           <div className="flex flex-col gap-4">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Launch checklist: complete setup in 2-3 minutes</p>
-              <p className="mt-1 text-sm text-muted">
-                Follow this order: add a property, add at least one unit inside it, then tenant → lease → payment. You
-                need a unit before you can create a lease.
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-foreground">Finish setting up your workspace</p>
+                <p className="mt-1 text-sm text-muted">
+                  Follow this order: property → unit → tenant → lease → payment for{" "}
+                  <span className="font-medium text-foreground">{launch.month}</span>. You need a unit before you can
+                  create a lease.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-9 w-9 shrink-0 rounded-lg p-0 text-muted hover:bg-black/[0.06] hover:text-foreground"
+                aria-label="Dismiss setup checklist"
+                onClick={() => {
+                  if (!user?.id) return;
+                  setLaunchChecklistDismissed(true);
+                  try {
+                    localStorage.setItem(launchChecklistDismissStorageKey(user.id), "1");
+                  } catch {
+                    /* ignore */
+                  }
+                }}
+              >
+                <X className="h-4 w-4" strokeWidth={2} />
+              </Button>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
               <Link
@@ -316,7 +384,7 @@ export default function DashboardPage() {
                 className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
               >
                 <span className="inline-flex items-center gap-2">
-                  {hasAssets ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
+                  {checklistHasAssets ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
                   Add property
                 </span>
                 <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted" />
@@ -327,7 +395,7 @@ export default function DashboardPage() {
               >
                 <span className="inline-flex min-w-0 flex-1 flex-col gap-0.5 text-left">
                   <span className="inline-flex items-center gap-2">
-                    {hasUnits ? <CheckCircle2 className="h-4 w-4 shrink-0 text-main-green" /> : <Circle className="h-4 w-4 shrink-0 text-muted" />}
+                    {checklistHasUnits ? <CheckCircle2 className="h-4 w-4 shrink-0 text-main-green" /> : <Circle className="h-4 w-4 shrink-0 text-muted" />}
                     Add unit
                   </span>
                   <span className="pl-6 text-[11px] leading-snug text-muted">Before any lease</span>
@@ -339,7 +407,7 @@ export default function DashboardPage() {
                 className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
               >
                 <span className="inline-flex items-center gap-2">
-                  {hasTenants ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
+                  {checklistHasTenants ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
                   Add tenant
                 </span>
                 <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted" />
@@ -350,7 +418,7 @@ export default function DashboardPage() {
               >
                 <span className="inline-flex min-w-0 flex-1 flex-col gap-0.5 text-left">
                   <span className="inline-flex items-center gap-2">
-                    {hasLeases ? <CheckCircle2 className="h-4 w-4 shrink-0 text-main-green" /> : <Circle className="h-4 w-4 shrink-0 text-muted" />}
+                    {checklistHasLeases ? <CheckCircle2 className="h-4 w-4 shrink-0 text-main-green" /> : <Circle className="h-4 w-4 shrink-0 text-muted" />}
                     Create lease
                   </span>
                   <span className="pl-6 text-[11px] leading-snug text-muted">Needs a unit</span>
@@ -362,25 +430,28 @@ export default function DashboardPage() {
                 className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
               >
                 <span className="inline-flex items-center gap-2">
-                  {hasPayments ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
+                  {checklistHasPayments ? <CheckCircle2 className="h-4 w-4 text-main-green" /> : <Circle className="h-4 w-4 text-muted" />}
                   Record payment
                 </span>
                 <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted" />
               </Link>
             </div>
             {nextAction ? (
-              <div className="flex items-center justify-between rounded-lg border border-main-blue/20 bg-background px-3 py-2.5 text-sm">
+              <div className="flex items-center justify-between rounded-lg border border-accent-gold/35 bg-background/80 px-3 py-2.5 text-sm">
                 <p className="inline-flex items-center gap-2 font-medium text-foreground">
-                  <Sparkles className="h-4 w-4 text-main-blue" />
-                  Next best action
+                  <Sparkles className="h-4 w-4 text-accent-gold" />
+                  Next step
                 </p>
-                <Link href={nextAction.href} className="inline-flex items-center gap-1 text-main-blue hover:underline">
+                <Link
+                  href={nextAction.href}
+                  className="inline-flex items-center gap-1 font-medium text-foreground underline decoration-accent-gold/50 underline-offset-2 hover:decoration-accent-gold"
+                >
                   {nextAction.label}
                   <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </div>
             ) : null}
-            {!hasAssets ? (
+            {!checklistHasAssets ? (
               <div>
                 <Button type="button" className="gap-2" onClick={() => setAssetOpen(true)}>
                   <Plus className="h-4 w-4" strokeWidth={1.75} />
