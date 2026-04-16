@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
+import { filterMoneyInput } from "@/lib/decimal-input";
 import { formatCompactMoney, formatMoney, formatPercent, monthRangeLastN } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
 import type { Asset, AssetValuation, Unit } from "@/lib/types";
@@ -871,8 +872,9 @@ function EditUnitModal({
             inputMode="decimal"
             className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
             value={rentAmount}
-            onChange={(e) => setRentAmount(e.target.value)}
+            onChange={(e) => setRentAmount(filterMoneyInput(e.target.value))}
             placeholder="0"
+            autoComplete="off"
           />
         </div>
         <div>

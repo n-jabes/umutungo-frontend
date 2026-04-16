@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { filterMoneyInput } from "@/lib/decimal-input";
 import { api, getErrorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import type { Unit } from "@/lib/types";
@@ -61,14 +62,20 @@ export function AddUnitModal({
         status,
       }),
     onSuccess: async () => {
-      await qc.invalidateQueries({ queryKey: queryKeys.units(assetId) });
+      // Asset detail uses `unitsPaged`; dashboard uses `units()`. Prefix-match all unit lists.
+      await qc.invalidateQueries({ queryKey: ["units"] });
       await qc.invalidateQueries({ queryKey: queryKeys.assets });
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: queryKeys.occupancy });
+      await qc.invalidateQueries({ queryKey: ["analytics", "rent-status", "asset", assetId] });
       toast.success(preset === "whole" ? "Single unit created" : "Unit added");
       onClose();
     },
-    onError: (e: unknown) => setError(getErrorMessage(e)),
+    onError: (e: unknown) => {
+      const msg = getErrorMessage(e);
+      setError(msg);
+      toast.error(msg);
+    },
   });
 
   const title = preset === "whole" ? "Single unit (whole)" : "Add unit";
@@ -121,9 +128,10 @@ export function AddUnitModal({
           <input
             className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
             value={rentAmount}
-            onChange={(e) => setRentAmount(e.target.value)}
+            onChange={(e) => setRentAmount(filterMoneyInput(e.target.value))}
             placeholder="0"
             inputMode="decimal"
+            autoComplete="off"
           />
         </div>
         <div>
