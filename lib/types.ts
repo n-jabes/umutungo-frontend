@@ -444,4 +444,24 @@ export type PaymentRangeSummary = {
   totalAmount: number;
   count: number;
   payments: Payment[];
+  obligations?: LeaseObligation[];
+  obligationTotals?: {
+    unpaidCount: number;
+    partialCount: number;
+    outstandingAmount: number;
+  };
+};
+
+export type LeaseObligation = {
+  id: string;
+  leaseId: string;
+  periodStartDate: string;
+  periodEndDate: string;
+  expectedAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  status: "unpaid" | "partial" | "paid" | "overpaid";
+  lease?: Lease & {
+    unit?: { name: string | null; asset: { id: string; name: string } };
+  };
 };

@@ -395,14 +395,16 @@ export default function DashboardPage() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           label="Income (this month)"
-          value={formatMoney(incomeQuery.data?.totalIncome ?? 0)}
+          value={formatCompactMoney(incomeQuery.data?.totalIncome ?? 0)}
+          valueTitle={formatMoney(incomeQuery.data?.totalIncome ?? 0)}
           hint="Paid rent recognized in the ledger"
           icon={CircleDollarSign}
           tone="green"
         />
         <StatCard
           label="Outstanding rent"
-          value={formatMoney(outstandingQuery.data?.outstanding ?? 0)}
+          value={formatCompactMoney(outstandingQuery.data?.outstanding ?? 0)}
+          valueTitle={formatMoney(outstandingQuery.data?.outstanding ?? 0)}
           hint="Active leases still carrying a balance"
           icon={Landmark}
           tone="gold"
@@ -442,6 +444,7 @@ export default function DashboardPage() {
           value={
             totalBookValue > 0 ? formatCompactMoney(totalBookValue) : "Add purchase prices"
           }
+          valueTitle={totalBookValue > 0 ? formatMoney(totalBookValue) : "Add purchase prices"}
           hint="Sum of recorded purchase prices on assets"
           icon={PiggyBank}
           tone="neutral"

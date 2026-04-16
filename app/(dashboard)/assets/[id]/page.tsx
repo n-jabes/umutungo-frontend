@@ -341,16 +341,19 @@ export default function AssetDetailPage() {
             <StatPill
               label="Occupancy"
               value={units?.length ? formatPercent(occupancyRate) : "—"}
+              valueTitle={units?.length ? formatPercent(occupancyRate) : "—"}
               icon={DoorClosed}
             />
             <StatPill
               label="Visible monthly rent"
               value={formatCompactMoney(monthlyRentPotential)}
+              valueTitle={formatMoney(monthlyRentPotential)}
               icon={LineChart}
             />
             <StatPill
               label="Book value"
               value={asset.purchasePrice ? formatCompactMoney(asset.purchasePrice) : "—"}
+              valueTitle={asset.purchasePrice ? formatMoney(asset.purchasePrice) : "—"}
               icon={Building2}
             />
           </div>
@@ -781,18 +784,25 @@ function ValuationTimeline({
 function StatPill({
   label,
   value,
+  valueTitle,
   icon: Icon,
 }: {
   label: string;
   value: string;
+  valueTitle?: string;
   icon: typeof Building2;
 }) {
   return (
     <div className="flex min-w-[140px] flex-1 items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 shadow-card">
       <Icon className="h-5 w-5 shrink-0 text-main-blue" strokeWidth={1.75} />
-      <div>
+      <div className="min-w-0 flex-1">
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted">{label}</p>
-        <p className="text-sm font-semibold tabular-nums-fin text-foreground">{value}</p>
+        <p
+          title={valueTitle ?? value}
+          className="truncate text-sm font-semibold tabular-nums-fin text-foreground"
+        >
+          {value}
+        </p>
       </div>
     </div>
   );

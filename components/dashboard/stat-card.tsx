@@ -5,12 +5,14 @@ import { cn } from "@/lib/utils";
 export function StatCard({
   label,
   value,
+  valueTitle,
   hint,
   icon: Icon,
   tone = "neutral",
 }: {
   label: string;
   value: string;
+  valueTitle?: string;
   hint?: string;
   icon: LucideIcon;
   tone?: "green" | "blue" | "gold" | "neutral";
@@ -25,11 +27,12 @@ export function StatCard({
     <Card className="p-5">
       <CardContent className="p-0">
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
             <p
+              title={valueTitle ?? value}
               className={cn(
-                "mt-3 text-2xl font-semibold tracking-tight tabular-nums-fin text-foreground sm:text-3xl",
+                "mt-3 truncate text-xl font-semibold tracking-tight tabular-nums-fin text-foreground sm:text-2xl lg:text-3xl",
               )}
             >
               {value}

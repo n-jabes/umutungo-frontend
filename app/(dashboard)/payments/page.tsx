@@ -20,10 +20,13 @@ import {
   paymentCoverageLabel,
 } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
-import type { Payment, PaymentProof } from "@/lib/types";
+import type { LeaseObligation, Payment, PaymentProof } from "@/lib/types";
 import { toast } from "sonner";
 
 type FilterKey = "all" | "paid" | "unpaid" | "partial";
+type DisplayRow =
+  | { kind: "payment"; payload: Payment & { leaseLabel: string } }
+  | { kind: "obligation"; payload: LeaseObligation & { leaseLabel: string } };
 
 function PaymentsInner() {
   const qc = useQueryClient();
@@ -51,10 +54,6 @@ function PaymentsInner() {
     queryFn: () => api.paymentSummaryRange(appliedFrom, appliedTo),
   });
 
-  const { data: leases } = useQuery({
-    queryKey: queryKeys.leases,
-    queryFn: () => api.listLeases(),
-  });
   const { data: paymentDetail } = useQuery({
     queryKey: ["payments", "detail", viewPayment?.id ?? ""],
     queryFn: () => api.getPayment(viewPayment!.id),
@@ -74,15 +73,7 @@ function PaymentsInner() {
     };
   }, [attachmentPreviewUrl]);
 
-  const rentByLease = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const l of leases ?? []) {
-      m.set(l.id, Number(l.rentAmountAtTime));
-    }
-    return m;
-  }, [leases]);
-
-  const rows = useMemo(() => {
+  const paymentRows = useMemo(() => {
     const map = new Map<string, Payment & { leaseLabel: string }>();
     for (const p of summary?.payments ?? []) {
       const lease = p.lease;
@@ -96,21 +87,35 @@ function PaymentsInner() {
     );
   }, [summary]);
 
-  const filtered = useMemo(() => {
-    return rows.filter((r) => {
-      const st = r.status.toLowerCase();
-      if (filter === "paid") return st === "paid";
-      if (filter === "unpaid") return st === "pending" || st === "failed";
-      if (filter === "partial") {
-        if (st !== "paid") return false;
-        const expected = rentByLease.get(r.leaseId);
-        if (!expected) return false;
-        const amt = Number(r.amount);
-        return amt > 0 && amt < expected;
-      }
-      return true;
+  const obligationRows = useMemo(() => {
+    return (summary?.obligations ?? []).map((o) => {
+      const lease = o.lease;
+      const assetName = lease?.unit?.asset.name ?? "Lease";
+      const unitName = lease?.unit?.name;
+      const label = unitName ? `${assetName} · ${unitName}` : assetName;
+      return { ...o, leaseLabel: label };
     });
-  }, [rows, filter, rentByLease]);
+  }, [summary?.obligations]);
+
+  const filtered = useMemo(() => {
+    if (filter === "unpaid") {
+      return obligationRows
+        .filter((o) => o.status === "unpaid")
+        .map((payload): DisplayRow => ({ kind: "obligation", payload }));
+    }
+    if (filter === "partial") {
+      return obligationRows
+        .filter((o) => o.status === "partial")
+        .map((payload): DisplayRow => ({ kind: "obligation", payload }));
+    }
+    return paymentRows
+      .filter((r) => {
+        const st = r.status.toLowerCase();
+        if (filter === "paid") return st === "paid";
+        return true;
+      })
+      .map((payload): DisplayRow => ({ kind: "payment", payload }));
+  }, [paymentRows, obligationRows, filter]);
   const pageSize = 10;
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -407,6 +412,15 @@ function PaymentsInner() {
             </strong>
             {" · "}
             Total <strong className="font-medium text-main-green">{formatMoney(summary.totalAmount)}</strong>
+            {summary.obligationTotals ? (
+              <>
+                {" · "}
+                Outstanding obligations{" "}
+                <strong className="font-medium text-foreground">
+                  {summary.obligationTotals.unpaidCount + summary.obligationTotals.partialCount}
+                </strong>
+              </>
+            ) : null}
           </p>
         ) : null}
         {isError ? (
@@ -456,45 +470,65 @@ function PaymentsInner() {
         </Card>
       ) : (
         <div className="flex flex-col divide-y divide-border rounded-xl border border-border bg-card shadow-sm xl:hidden">
-          {paginated.map((p) => (
-            <div key={p.id} className="flex items-start justify-between gap-3 p-4">
+          {paginated.map((item) => (
+            <div key={`${item.kind}:${item.payload.id}`} className="flex items-start justify-between gap-3 p-4">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold tabular-nums-fin text-main-green">{formatMoney(p.amount)}</span>
+                  <span className="font-semibold tabular-nums-fin text-main-green">
+                    {item.kind === "payment"
+                      ? formatMoney(item.payload.amount)
+                      : formatMoney(item.payload.outstandingAmount)}
+                  </span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-muted-bg px-2 py-0.5 text-xs font-medium capitalize text-foreground">
                     <Receipt className="h-3 w-3 shrink-0" strokeWidth={1.75} />
-                    {p.status}
+                    {item.payload.status}
                   </span>
                 </div>
-                <p className="mt-1 truncate text-xs text-muted">{p.leaseLabel}</p>
+                <p className="mt-1 truncate text-xs text-muted">{item.payload.leaseLabel}</p>
                 <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
-                  <span className="font-medium text-foreground">{paymentCoverageLabel(p)}</span>
-                  <span className={p.proofCount ? "font-medium text-main-green" : ""}>
-                    {p.proofCount ? `${p.proofCount} proof${p.proofCount === 1 ? "" : "s"}` : "No proof"}
-                  </span>
-                  <button
-                    type="button"
-                    className="text-main-blue underline-offset-2 transition hover:underline"
-                    onClick={() => setViewPayment(p)}
-                  >
-                    View details
-                  </button>
-                  {p.month ? (
-                    <span className="text-[10px] text-muted">ref. {p.month}</span>
-                  ) : null}
-                  {p.method ? <span>{p.method}</span> : null}
-                  <span>
-                    {new Date(p.paidAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
-                  </span>
+                  {item.kind === "payment" ? (
+                    <>
+                      <span className="font-medium text-foreground">{paymentCoverageLabel(item.payload)}</span>
+                      <span className={item.payload.proofCount ? "font-medium text-main-green" : ""}>
+                        {item.payload.proofCount
+                          ? `${item.payload.proofCount} proof${item.payload.proofCount === 1 ? "" : "s"}`
+                          : "No proof"}
+                      </span>
+                      <button
+                        type="button"
+                        className="text-main-blue underline-offset-2 transition hover:underline"
+                        onClick={() => setViewPayment(item.payload)}
+                      >
+                        View details
+                      </button>
+                      {item.payload.month ? (
+                        <span className="text-[10px] text-muted">ref. {item.payload.month}</span>
+                      ) : null}
+                      {item.payload.method ? <span>{item.payload.method}</span> : null}
+                      <span>
+                        {new Date(item.payload.paidAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="font-medium text-foreground">
+                        Due period {item.payload.periodStartDate.slice(0, 10)} - {item.payload.periodEndDate.slice(0, 10)}
+                      </span>
+                      <span>Expected {formatMoney(item.payload.expectedAmount)}</span>
+                      <span>Paid {formatMoney(item.payload.paidAmount)}</span>
+                    </>
+                  )}
                 </div>
               </div>
-              <div className="shrink-0">
-                <RowActions
-                  onView={() => setViewPayment(p)}
-                  onEdit={() => setEditPayment(p)}
-                  onDelete={() => setDeletePayment(p)}
-                />
-              </div>
+              {item.kind === "payment" ? (
+                <div className="shrink-0">
+                  <RowActions
+                    onView={() => setViewPayment(item.payload)}
+                    onEdit={() => setEditPayment(item.payload)}
+                    onDelete={() => setDeletePayment(item.payload)}
+                  />
+                </div>
+              ) : null}
             </div>
           ))}
         </div>
@@ -523,59 +557,77 @@ function PaymentsInner() {
                 </td>
               </tr>
             ) : paginated.length ? (
-              paginated.map((p) => (
-                <tr key={p.id} className="transition hover:bg-muted-bg/30">
+              paginated.map((item) => (
+                <tr key={`${item.kind}:${item.payload.id}`} className="transition hover:bg-muted-bg/30">
                   <td className="whitespace-nowrap px-4 py-3.5 text-muted">
-                    {new Date(p.paidAt).toLocaleString(undefined, {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
+                    {item.kind === "payment"
+                      ? new Date(item.payload.paidAt).toLocaleString(undefined, {
+                          dateStyle: "medium",
+                          timeStyle: "short",
+                        })
+                      : `${item.payload.periodStartDate.slice(0, 10)} - ${item.payload.periodEndDate.slice(0, 10)}`}
                   </td>
                   <td className="max-w-[220px] whitespace-normal px-4 py-3.5 text-sm font-medium leading-snug text-foreground">
-                    <span className="block">{paymentCoverageLabel(p)}</span>
-                    {p.month ? (
-                      <span className="mt-0.5 block text-[10px] font-normal text-muted">ref. {p.month}</span>
-                    ) : null}
+                    {item.kind === "payment" ? (
+                      <>
+                        <span className="block">{paymentCoverageLabel(item.payload)}</span>
+                        {item.payload.month ? (
+                          <span className="mt-0.5 block text-[10px] font-normal text-muted">ref. {item.payload.month}</span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <span className="block">Expected {formatMoney(item.payload.expectedAmount)}</span>
+                    )}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3.5 font-semibold tabular-nums-fin text-main-green">
-                    {formatMoney(p.amount)}
+                    {item.kind === "payment"
+                      ? formatMoney(item.payload.amount)
+                      : formatMoney(item.payload.outstandingAmount)}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-muted">
-                    {p.method ?? "—"}
+                    {item.kind === "payment" ? item.payload.method ?? "—" : `Paid ${formatMoney(item.payload.paidAmount)}`}
                   </td>
                   <td className="whitespace-nowrap px-4 py-3.5">
-                    <div className="flex items-center gap-2">
-                      {p.proofCount ? (
-                        <span className="inline-flex items-center rounded-full bg-main-green/10 px-2 py-0.5 text-xs font-medium text-main-green">
-                          {p.proofCount} attached
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center rounded-full bg-muted-bg px-2 py-0.5 text-xs text-muted">
-                          None
-                        </span>
-                      )}
-                      <button
-                        type="button"
-                        className="text-xs font-medium text-main-blue underline-offset-2 transition hover:underline"
-                        onClick={() => setViewPayment(p)}
-                      >
-                        View details
-                      </button>
-                    </div>
+                    {item.kind === "payment" ? (
+                      <div className="flex items-center gap-2">
+                        {item.payload.proofCount ? (
+                          <span className="inline-flex items-center rounded-full bg-main-green/10 px-2 py-0.5 text-xs font-medium text-main-green">
+                            {item.payload.proofCount} attached
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center rounded-full bg-muted-bg px-2 py-0.5 text-xs text-muted">
+                            None
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-main-blue underline-offset-2 transition hover:underline"
+                          onClick={() => setViewPayment(item.payload)}
+                        >
+                          View details
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted">Auto-generated obligation</span>
+                    )}
                   </td>
-                  <td className="whitespace-nowrap px-4 py-3.5 text-muted">{p.leaseLabel}</td>
+                  <td className="whitespace-nowrap px-4 py-3.5 text-muted">{item.payload.leaseLabel}</td>
                   <td className="whitespace-nowrap px-4 py-3.5">
                     <span className="inline-flex items-center gap-1 rounded-full bg-muted-bg px-2 py-0.5 text-xs font-medium capitalize text-foreground">
                       <Receipt className="h-3 w-3 shrink-0" strokeWidth={1.75} />
-                      {p.status}
+                      {item.payload.status}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-4 py-3.5 text-right">
-                    <RowActions
-                      onView={() => setViewPayment(p)}
-                      onEdit={() => setEditPayment(p)}
-                      onDelete={() => setDeletePayment(p)}
-                    />
+                    {item.kind === "payment" ? (
+                      <RowActions
+                        onView={() => setViewPayment(item.payload)}
+                        onEdit={() => setEditPayment(item.payload)}
+                        onDelete={() => setDeletePayment(item.payload)}
+                      />
+                    ) : (
+                      <span className="text-xs text-muted">—</span>
+                    )}
                   </td>
                 </tr>
               ))
