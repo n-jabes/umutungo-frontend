@@ -95,6 +95,8 @@ export type Tenant = {
   ownerId: string;
   name: string;
   phone: string | null;
+  /** Optional contact email (owner/admin only). */
+  email?: string | null;
   idNumber: string | null;
   createdAt: string;
 };

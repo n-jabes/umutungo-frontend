@@ -115,6 +115,24 @@ function PaymentsInner() {
     return obligationRows.filter((o) => o.leaseId === leaseIdFilter);
   }, [obligationRows, leaseIdFilter]);
 
+  /** Paid / unpaid / partial in the applied month range (and lease scope when set). */
+  const rangeStatusStats = useMemo(() => {
+    const paidRows = scopedPaymentRows.filter((p) => p.status.toLowerCase() === "paid");
+    const paidAmount = paidRows.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    const unpaidObs = scopedObligationRows.filter((o) => o.status === "unpaid");
+    const partialObs = scopedObligationRows.filter((o) => o.status === "partial");
+    const unpaidAmount = unpaidObs.reduce((sum, o) => sum + (o.outstandingAmount ?? 0), 0);
+    const partialAmount = partialObs.reduce((sum, o) => sum + (o.outstandingAmount ?? 0), 0);
+    return {
+      paidCount: paidRows.length,
+      paidAmount,
+      unpaidCount: unpaidObs.length,
+      unpaidAmount,
+      partialCount: partialObs.length,
+      partialAmount,
+    };
+  }, [scopedPaymentRows, scopedObligationRows]);
+
   const filtered = useMemo(() => {
     if (filter === "unpaid") {
       return scopedObligationRows
@@ -131,7 +149,7 @@ function PaymentsInner() {
         .filter((r) => r.status.toLowerCase() === "paid")
         .map((payload): DisplayRow => ({ kind: "payment", payload }));
     }
-    /** "All": paid payments plus unpaid/partial obligations (same data the summary line counts). */
+    /** "All": every payment row plus every obligation row in scope (same set as the table below). */
     const obligationDisplay = scopedObligationRows.map((payload): DisplayRow => ({ kind: "obligation", payload }));
     const paymentDisplay = scopedPaymentRows.map((payload): DisplayRow => ({ kind: "payment", payload }));
     return [...obligationDisplay, ...paymentDisplay].sort((a, b) => {
@@ -140,6 +158,33 @@ function PaymentsInner() {
       return tb - ta;
     });
   }, [scopedPaymentRows, scopedObligationRows, filter]);
+
+  /** Matches the table: same rows, same amount column (payment amount vs obligation outstanding). */
+  const listSummary = useMemo(() => {
+    let payments = 0;
+    let obligations = 0;
+    let openObligations = 0;
+    let sumAmounts = 0;
+    for (const row of filtered) {
+      if (row.kind === "payment") {
+        payments += 1;
+        sumAmounts += Number(row.payload.amount || 0);
+      } else {
+        obligations += 1;
+        sumAmounts += row.payload.outstandingAmount ?? 0;
+        if (row.payload.status === "unpaid" || row.payload.status === "partial") {
+          openObligations += 1;
+        }
+      }
+    }
+    return {
+      rowCount: filtered.length,
+      payments,
+      obligations,
+      openObligations,
+      sumAmounts,
+    };
+  }, [filtered]);
 
   useEffect(() => {
     setPage(1);
@@ -384,7 +429,7 @@ function PaymentsInner() {
           </p>
           <p className="mt-1 text-xs text-muted">
             Paid rows are payments in the month range above. Unpaid and partial rows are open rent periods for this
-            lease (same totals as the summary line). Use{" "}
+            lease. Counts and totals above match the table for this lease. Use{" "}
             <strong className="text-foreground">All</strong> to see both together.
           </p>
           <Link
@@ -458,23 +503,79 @@ function PaymentsInner() {
         {rangeError ? <p className="text-sm text-red-600">{rangeError}</p> : null}
         {summary && !isLoading ? (
           <p className="text-xs text-muted">
-            Showing <strong className="font-medium text-foreground">{summary.count}</strong>{" "}
-            payment{summary.count === 1 ? "" : "s"} in{" "}
+            Showing <strong className="font-medium text-foreground">{listSummary.rowCount}</strong>{" "}
+            row{listSummary.rowCount === 1 ? "" : "s"} in{" "}
             <strong className="font-medium text-foreground">
               {summary.from} — {summary.to}
             </strong>
-            {" · "}
-            Total <strong className="font-medium text-main-green">{formatMoney(summary.totalAmount)}</strong>
-            {summary.obligationTotals ? (
+            {leaseIdFilter ? (
               <>
-                {" · "}
-                Outstanding obligations{" "}
-                <strong className="font-medium text-foreground">
-                  {summary.obligationTotals.unpaidCount + summary.obligationTotals.partialCount}
-                </strong>
+                {" "}
+                <span className="text-muted/90">(this lease)</span>
               </>
             ) : null}
+            {listSummary.rowCount === 0 ? (
+              <> · No rows match the current status filter.</>
+            ) : (
+              <>
+                {" · "}
+                Total of amounts in this list:{" "}
+                <strong className="font-medium text-main-green">{formatMoney(listSummary.sumAmounts)}</strong>
+                {listSummary.payments > 0 ? (
+                  <>
+                    {" · "}
+                    <strong className="font-medium text-foreground">{listSummary.payments}</strong> payment
+                    {listSummary.payments === 1 ? "" : "s"}
+                  </>
+                ) : null}
+                {listSummary.obligations > 0 ? (
+                  <>
+                    {" · "}
+                    <strong className="font-medium text-foreground">{listSummary.obligations}</strong> rent period
+                    {listSummary.obligations === 1 ? "" : "s"}
+                    {listSummary.openObligations > 0 ? (
+                      <>
+                        {" "}
+                        (<strong>{listSummary.openObligations}</strong> unpaid or partial)
+                      </>
+                    ) : null}
+                  </>
+                ) : null}
+              </>
+            )}
           </p>
+        ) : null}
+        {summary && !isLoading ? (
+          <div className="grid gap-3 pt-1 sm:grid-cols-3">
+            <div className="rounded-xl border border-border bg-muted-bg/35 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Paid</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums-fin text-main-green">
+                {formatMoney(rangeStatusStats.paidAmount)}
+              </p>
+              <p className="mt-0.5 text-xs text-muted">
+                {rangeStatusStats.paidCount} payment{rangeStatusStats.paidCount === 1 ? "" : "s"} with status paid
+                {leaseIdFilter ? " (this lease)" : ""}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-muted-bg/35 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Unpaid periods</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums-fin text-foreground">
+                {formatMoney(rangeStatusStats.unpaidAmount)}
+              </p>
+              <p className="mt-0.5 text-xs text-muted">
+                {rangeStatusStats.unpaidCount} open obligation{rangeStatusStats.unpaidCount === 1 ? "" : "s"}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-muted-bg/35 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Partially paid</p>
+              <p className="mt-1 text-lg font-semibold tabular-nums-fin text-foreground">
+                {formatMoney(rangeStatusStats.partialAmount)}
+              </p>
+              <p className="mt-0.5 text-xs text-muted">
+                {rangeStatusStats.partialCount} period{rangeStatusStats.partialCount === 1 ? "" : "s"} with balance remaining
+              </p>
+            </div>
+          </div>
         ) : null}
         {isError ? (
           <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">

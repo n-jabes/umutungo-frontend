@@ -181,6 +181,7 @@ export function AddTenantModal({
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const mutation = useMutation({
@@ -188,12 +189,14 @@ export function AddTenantModal({
       api.createTenant({
         name: name.trim(),
         phone: phone.trim() || undefined,
+        email: email.trim() || undefined,
       }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.tenants });
       await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
       setName("");
       setPhone("");
+      setEmail("");
       setError(null);
       toast.success("Tenant added successfully");
       onClose();
@@ -232,6 +235,18 @@ export function AddTenantModal({
             onChange={(e) => setPhone(e.target.value)}
             placeholder="+250…"
           />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Email (optional)</label>
+          <input
+            type="email"
+            autoComplete="email"
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@example.com"
+          />
+          <p className="mt-1 text-[11px] text-muted">For owner and admin records only.</p>
         </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         <div className="flex justify-end gap-2 pt-2">
@@ -548,12 +563,14 @@ export function EditTenantModal({
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tenant) return;
     setName(tenant.name);
     setPhone(tenant.phone ?? "");
+    setEmail(tenant.email ?? "");
     setError(null);
   }, [tenant]);
 
@@ -562,6 +579,7 @@ export function EditTenantModal({
       api.updateTenant(tenant!.id, {
         name: name.trim(),
         phone: phone.trim() || undefined,
+        email: email.trim() ? email.trim() : null,
       }),
     onSuccess: async () => {
       await qc.invalidateQueries({ queryKey: queryKeys.tenants });
@@ -600,6 +618,18 @@ export function EditTenantModal({
             onChange={(e) => setPhone(e.target.value)}
             placeholder="+250…"
           />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted">Email (optional)</label>
+          <input
+            type="email"
+            autoComplete="email"
+            className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@example.com"
+          />
+          <p className="mt-1 text-[11px] text-muted">For owner and admin records only.</p>
         </div>
         <div>
           <label className="text-xs font-medium text-muted">Tenant ID (readonly)</label>

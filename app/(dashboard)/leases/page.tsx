@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Calendar, FileText, Plus } from "lucide-react";
+import Link from "next/link";
+import { Calendar, FileText, Plus, Wallet } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { EditLeaseModal } from "@/components/dashboard/quick-dialogs";
@@ -16,9 +17,9 @@ import {
   isValidMoneyAmount,
   normalizeMoneyInput,
 } from "@/lib/decimal-input";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, paymentCoverageLabel } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
-import type { Lease } from "@/lib/types";
+import type { Lease, Payment } from "@/lib/types";
 
 export default function LeasesPage() {
   const qc = useQueryClient();
@@ -27,9 +28,15 @@ export default function LeasesPage() {
     queryFn: () => api.listLeases(),
   });
   const [createOpen, setCreateOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "ended">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "ended" | "draft">("all");
+  const [search, setSearch] = useState("");
+  const [assetId, setAssetId] = useState("");
+  const [tenantIdFilter, setTenantIdFilter] = useState("");
+  const [openEndedOnly, setOpenEndedOnly] = useState(false);
+  const [unassignedOnly, setUnassignedOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [editLease, setEditLease] = useState<Lease | null>(null);
+  const [viewLeaseId, setViewLeaseId] = useState<string | null>(null);
   const [endLease, setEndLease] = useState<Lease | null>(null);
 
   const sorted = useMemo(
@@ -39,14 +46,48 @@ export default function LeasesPage() {
       ),
     [leases],
   );
-  const filtered = useMemo(
-    () =>
-      sorted.filter((lease) => {
-        if (statusFilter === "all") return true;
-        return statusFilter === "active" ? lease.status === "active" : lease.status !== "active";
-      }),
-    [sorted, statusFilter],
-  );
+
+  const assetOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of sorted) {
+      const id = l.unit?.assetId;
+      const name = l.unit?.asset.name;
+      if (id && name) map.set(id, name);
+    }
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [sorted]);
+
+  const tenantOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const l of sorted) {
+      if (l.tenantId && l.tenant?.name) map.set(l.tenantId, l.tenant.name);
+    }
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [sorted]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return sorted.filter((lease) => {
+      if (statusFilter !== "all" && lease.status !== statusFilter) return false;
+      if (assetId && lease.unit?.assetId !== assetId) return false;
+      if (tenantIdFilter && lease.tenantId !== tenantIdFilter) return false;
+      if (openEndedOnly && (lease.status !== "active" || lease.endDate)) return false;
+      if (unassignedOnly && lease.tenantId) return false;
+      if (q) {
+        const blob = [lease.tenant?.name, lease.unit?.asset.name, lease.unit?.name, lease.status]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        if (!blob.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [sorted, statusFilter, search, assetId, tenantIdFilter, openEndedOnly, unassignedOnly]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, search, assetId, tenantIdFilter, openEndedOnly, unassignedOnly]);
+
   const pageSize = 10;
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -65,6 +106,14 @@ export default function LeasesPage() {
 
   return (
     <div className="space-y-8">
+      <ViewLeaseModal
+        leaseId={viewLeaseId}
+        onClose={() => setViewLeaseId(null)}
+        onEdit={(l) => {
+          setViewLeaseId(null);
+          setEditLease(l);
+        }}
+      />
       <EditLeaseModal lease={editLease} onClose={() => setEditLease(null)} />
       <ConfirmDialog
         open={!!endLease}
@@ -92,21 +141,117 @@ export default function LeasesPage() {
           New lease
         </Button>
       </div>
-      <Card className="p-3">
-        <div className="flex gap-2">
-          {(["all", "active", "ended"] as const).map((filter) => (
-            <button
-              key={filter}
-              type="button"
-              onClick={() => {
-                setStatusFilter(filter);
-                setPage(1);
-              }}
-              className={statusFilter === filter ? "rounded-lg bg-blue-soft px-3 py-1.5 text-xs font-medium text-main-blue" : "rounded-lg px-3 py-1.5 text-xs font-medium text-muted"}
+      <Card className="space-y-4 p-4 sm:p-5">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Status</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {(["all", "active", "ended", "draft"] as const).map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                onClick={() => setStatusFilter(filter)}
+                className={
+                  statusFilter === filter
+                    ? "rounded-lg bg-blue-soft px-3 py-1.5 text-xs font-medium capitalize text-main-blue"
+                    : "rounded-lg px-3 py-1.5 text-xs font-medium capitalize text-muted"
+                }
+              >
+                {filter}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="sm:col-span-2 lg:col-span-1">
+            <label className="text-xs font-medium text-muted" htmlFor="lease-search">
+              Search
+            </label>
+            <input
+              id="lease-search"
+              type="search"
+              placeholder="Tenant, property, unit…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted" htmlFor="lease-asset">
+              Property
+            </label>
+            <select
+              id="lease-asset"
+              value={assetId}
+              onChange={(e) => setAssetId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-main-blue/30 focus:ring-2"
             >
-              {filter}
+              <option value="">All properties</option>
+              {assetOptions.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted" htmlFor="lease-tenant">
+              Tenant
+            </label>
+            <select
+              id="lease-tenant"
+              value={tenantIdFilter}
+              onChange={(e) => setTenantIdFilter(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none ring-main-blue/30 focus:ring-2"
+            >
+              <option value="">All tenants</option>
+              {tenantOptions.map(([id, name]) => (
+                <option key={id} value={id}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-4 border-t border-border pt-4">
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={openEndedOnly}
+              onChange={(e) => setOpenEndedOnly(e.target.checked)}
+              className="rounded border-border"
+            />
+            Active &amp; open-ended only
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground">
+            <input
+              type="checkbox"
+              checked={unassignedOnly}
+              onChange={(e) => setUnassignedOnly(e.target.checked)}
+              className="rounded border-border"
+            />
+            No tenant assigned
+          </label>
+          {(search.trim() ||
+            assetId ||
+            tenantIdFilter ||
+            openEndedOnly ||
+            unassignedOnly ||
+            statusFilter !== "all") && (
+            <button
+              type="button"
+              className="text-xs font-medium text-main-blue underline-offset-2 hover:underline"
+              onClick={() => {
+                setSearch("");
+                setAssetId("");
+                setTenantIdFilter("");
+                setOpenEndedOnly(false);
+                setUnassignedOnly(false);
+                setStatusFilter("all");
+              }}
+            >
+              Clear filters
             </button>
-          ))}
+          )}
         </div>
       </Card>
 
@@ -148,7 +293,7 @@ export default function LeasesPage() {
                 </div>
                 <div className="flex items-start gap-2 text-right">
                   <RowActions
-                    onView={() => (window.location.href = `/leases#${l.id}`)}
+                    onView={() => setViewLeaseId(l.id)}
                     onEdit={() => setEditLease(l)}
                     onDelete={() => {
                       if (l.status !== "active") {
@@ -209,6 +354,139 @@ export default function LeasesPage() {
 
       <CreateLeaseModal open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
+  );
+}
+
+function ViewLeaseModal({
+  leaseId,
+  onClose,
+  onEdit,
+}: {
+  leaseId: string | null;
+  onClose: () => void;
+  onEdit: (lease: Lease) => void;
+}) {
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: queryKeys.lease(leaseId ?? ""),
+    queryFn: () => api.getLease(leaseId!),
+    enabled: !!leaseId,
+  });
+
+  const sortedPayments = useMemo(() => {
+    if (!data?.payments?.length) return [];
+    return [...data.payments].sort((a, b) => new Date(b.paidAt).getTime() - new Date(a.paidAt).getTime());
+  }, [data?.payments]);
+
+  return (
+    <Modal
+      open={!!leaseId}
+      onClose={onClose}
+      title="Lease details"
+      description="Read-only summary. Edit the lease or open the payments ledger for this contract."
+      size="lg"
+    >
+      {isLoading ? (
+        <p className="text-sm text-muted">Loading lease…</p>
+      ) : isError ? (
+        <p className="text-sm text-red-600">{getErrorMessage(error)}</p>
+      ) : data ? (
+        <div className="space-y-5">
+          <div className="grid gap-3 rounded-xl border border-border bg-muted-bg/40 p-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Location</p>
+              <p className="mt-0.5 text-sm font-medium text-foreground">
+                {data.unit?.asset.name ?? "—"}
+                {data.unit?.name ? ` · ${data.unit.name}` : ""}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Tenant</p>
+              <p className="mt-0.5 text-sm text-foreground">{data.tenant?.name ?? "Unassigned"}</p>
+              {data.tenant?.phone ? (
+                <p className="mt-0.5 text-xs text-muted">{data.tenant.phone}</p>
+              ) : null}
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Status</p>
+              <p className="mt-0.5 text-sm capitalize text-foreground">{data.status}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Term</p>
+              <p className="mt-0.5 text-sm text-foreground">
+                {data.startDate.slice(0, 10)}
+                {data.endDate ? ` → ${data.endDate.slice(0, 10)}` : " → open-ended"}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Contract rent</p>
+              <p className="mt-0.5 text-sm font-semibold tabular-nums-fin text-foreground">
+                {formatMoney(data.rentAmountAtTime)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Deposit</p>
+              <p className="mt-0.5 text-sm tabular-nums-fin text-foreground">{formatMoney(data.deposit)}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Created</p>
+              <p className="mt-0.5 text-sm text-foreground">
+                {new Date(data.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Recent payments</p>
+            {sortedPayments.length === 0 ? (
+              <p className="mt-2 text-sm text-muted">No payments recorded for this lease yet.</p>
+            ) : (
+              <ul className="mt-2 max-h-56 space-y-2 overflow-y-auto rounded-lg border border-border bg-background p-2 text-sm">
+                {sortedPayments.slice(0, 25).map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex flex-col gap-0.5 rounded-md border border-transparent px-2 py-1.5 hover:bg-muted-bg/60 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-medium tabular-nums-fin text-main-green">{formatMoney(p.amount)}</p>
+                      <p className="text-xs text-muted">{paymentCoverageLabel(p)}</p>
+                    </div>
+                    <p className="shrink-0 text-xs text-muted">
+                      {new Date(p.paidAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+                      <span className="ml-1 capitalize">· {p.status}</span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {sortedPayments.length > 25 ? (
+              <p className="mt-1 text-[11px] text-muted">Showing 25 most recent. Full history is on Payments.</p>
+            ) : null}
+          </div>
+
+          <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+            <Link
+              href={`/payments?lease=${encodeURIComponent(data.id)}`}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground transition-all duration-200 hover:bg-muted-bg active:scale-[0.99]"
+            >
+              <Wallet className="h-4 w-4" strokeWidth={1.75} />
+              Payments ledger
+            </Link>
+            <Button
+              type="button"
+              onClick={() => {
+                const { payments: _payments, ...lease } = data;
+                onEdit(lease);
+              }}
+            >
+              Edit lease
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </Modal>
   );
 }
 

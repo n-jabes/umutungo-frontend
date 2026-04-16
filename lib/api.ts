@@ -334,12 +334,15 @@ export const api = {
     return unwrap(data);
   },
 
-  async createTenant(body: { name: string; phone?: string; idNumber?: string }) {
+  async createTenant(body: { name: string; phone?: string; email?: string | null; idNumber?: string }) {
     const { data } = await rawApi.post<Ok<Tenant>>("/tenants", body);
     return unwrap(data);
   },
 
-  async updateTenant(id: string, body: Partial<{ name: string; phone: string; idNumber: string }>) {
+  async updateTenant(
+    id: string,
+    body: Partial<{ name: string; phone: string; email: string | null; idNumber: string }>,
+  ) {
     const { data } = await rawApi.patch<Ok<Tenant>>(`/tenants/${id}`, body);
     return unwrap(data);
   },

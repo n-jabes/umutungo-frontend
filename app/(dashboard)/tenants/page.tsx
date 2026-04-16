@@ -2,18 +2,20 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { Phone, User, Wallet } from "lucide-react";
+import { Mail, Phone, User, Wallet } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AddTenantModal, EditTenantModal } from "@/components/dashboard/quick-dialogs";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RowActions } from "@/components/ui/row-actions";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
-import { currentMonth } from "@/lib/format";
+import { currentMonth, formatMoney } from "@/lib/format";
 import { queryKeys } from "@/lib/query-keys";
-import type { Tenant } from "@/lib/types";
+import type { Lease, Tenant } from "@/lib/types";
 
 export default function TenantsPage() {
   const { user } = useAuth();
@@ -23,6 +25,7 @@ export default function TenantsPage() {
   const [page, setPage] = useState(1);
   const [addOpen, setAddOpen] = useState(false);
   const [editTenant, setEditTenant] = useState<Tenant | null>(null);
+  const [viewTenantId, setViewTenantId] = useState<string | null>(null);
   const [deleteTenant, setDeleteTenant] = useState<Tenant | null>(null);
 
   const { data: tenants, isLoading } = useQuery({
@@ -64,6 +67,13 @@ export default function TenantsPage() {
   const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize));
   const rows = filtered.slice((page - 1) * pageSize, page * pageSize);
 
+  const viewTenant = useMemo(
+    () => (viewTenantId == null ? null : (tenants ?? []).find((t) => t.id === viewTenantId) ?? null),
+    [tenants, viewTenantId],
+  );
+  const viewTenantLease: Lease | undefined =
+    viewTenantId != null ? leaseByTenant.get(viewTenantId) : undefined;
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.deleteTenant(id),
     onSuccess: async () => {
@@ -93,6 +103,16 @@ export default function TenantsPage() {
     <div className="w-full min-w-0 max-w-full space-y-5 sm:space-y-8">
       <AddTenantModal open={addOpen} onClose={() => setAddOpen(false)} />
       <EditTenantModal tenant={editTenant} onClose={() => setEditTenant(null)} />
+      <ViewTenantModal
+        open={viewTenantId != null}
+        tenant={viewTenant}
+        lease={viewTenantLease}
+        onClose={() => setViewTenantId(null)}
+        onEdit={(t) => {
+          setViewTenantId(null);
+          setEditTenant(t);
+        }}
+      />
       <ConfirmDialog
         open={!!deleteTenant}
         onClose={() => setDeleteTenant(null)}
@@ -197,7 +217,7 @@ export default function TenantsPage() {
                       </Link>
                     ) : null}
                     <RowActions
-                      onView={() => (window.location.href = lease ? `/leases#${lease.id}` : "/tenants")}
+                      onView={() => setViewTenantId(t.id)}
                       onEdit={() => setEditTenant(t)}
                       onDelete={() => setDeleteTenant(t)}
                     />
@@ -280,7 +300,7 @@ export default function TenantsPage() {
                             </Link>
                           ) : null}
                           <RowActions
-                            onView={() => (window.location.href = lease ? `/leases#${lease.id}` : "/tenants")}
+                            onView={() => setViewTenantId(t.id)}
                             onEdit={() => setEditTenant(t)}
                             onDelete={() => setDeleteTenant(t)}
                           />
@@ -321,5 +341,110 @@ export default function TenantsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ViewTenantModal({
+  open,
+  tenant,
+  lease,
+  onClose,
+  onEdit,
+}: {
+  open: boolean;
+  tenant: Tenant | null;
+  lease?: Lease;
+  onClose: () => void;
+  onEdit: (t: Tenant) => void;
+}) {
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="Tenant details"
+      description="Profile and active lease context. Edit the record to change contact details."
+    >
+      {!tenant ? (
+        <p className="text-sm text-muted">This tenant is no longer in the list. Close and refresh the page.</p>
+      ) : (
+        <div className="space-y-5">
+          <div className="grid gap-3 rounded-xl border border-border bg-muted-bg/40 p-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Name</p>
+              <p className="mt-0.5 text-base font-semibold text-foreground">{tenant.name}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Phone</p>
+              <p className="mt-0.5 text-sm text-foreground">{tenant.phone ?? "—"}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Email</p>
+              <p className="mt-0.5 flex min-w-0 items-start gap-2 text-sm text-foreground">
+                {tenant.email ? (
+                  <>
+                    <Mail className="mt-0.5 h-4 w-4 shrink-0 text-muted" strokeWidth={1.75} />
+                    <a href={`mailto:${tenant.email}`} className="break-all text-main-blue hover:underline">
+                      {tenant.email}
+                    </a>
+                  </>
+                ) : (
+                  "—"
+                )}
+              </p>
+            </div>
+            {tenant.idNumber ? (
+              <div className="sm:col-span-2">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">ID number</p>
+                <p className="mt-0.5 text-sm text-foreground">{tenant.idNumber}</p>
+              </div>
+            ) : null}
+            <div className="sm:col-span-2">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Added</p>
+              <p className="mt-0.5 text-sm text-foreground">
+                {new Date(tenant.createdAt).toLocaleDateString(undefined, { dateStyle: "medium" })}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-border p-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Active lease</p>
+            {lease ? (
+              <div className="mt-2 space-y-2 text-sm">
+                <p className="text-foreground">
+                  {lease.unit?.asset.name ?? "Property"}
+                  {lease.unit?.name ? ` · ${lease.unit.name}` : ""}
+                </p>
+                <p className="text-muted">
+                  Contract rent{" "}
+                  <span className="font-medium tabular-nums-fin text-foreground">
+                    {formatMoney(lease.rentAmountAtTime)}
+                  </span>
+                  <span className="mx-1">·</span>
+                  <span className="capitalize">{lease.status}</span>
+                </p>
+                <Link
+                  href={`/payments?lease=${encodeURIComponent(lease.id)}`}
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground transition-all duration-200 hover:bg-muted-bg active:scale-[0.99]"
+                >
+                  <Wallet className="h-4 w-4" strokeWidth={1.75} />
+                  Open payments for this lease
+                </Link>
+              </div>
+            ) : (
+              <p className="mt-2 text-sm text-muted">No active lease for this tenant.</p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+            <Button type="button" variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+            <Button type="button" onClick={() => onEdit(tenant)}>
+              Edit tenant
+            </Button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
