@@ -120,15 +120,15 @@ function AuditEntryRow({ entry }: { entry: AuditLogEntry }) {
       </div>
       {open && expandable ? (
         <div className="border-t border-border bg-muted-bg/40 px-4 py-4">
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid min-w-0 gap-4 lg:grid-cols-2">
             {hasContext ? (
-              <div className="space-y-3">
+              <div className="min-w-0 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">Request context</p>
                 <dl className="space-y-3 text-sm">
                   <div>
                     <dt className="text-xs font-medium text-muted">Client IP</dt>
-                    <dd className="mt-1 flex items-center gap-1">
-                      <code className="flex-1 break-all rounded-md bg-card px-2 py-1.5 font-mono text-xs ring-1 ring-border">
+                    <dd className="mt-1 flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center">
+                      <code className="min-w-0 w-full flex-1 break-all rounded-md bg-card px-2 py-1.5 font-mono text-xs ring-1 ring-border">
                         {entry.ipAddress ?? "—"}
                       </code>
                       <CopyIconButton label="IP address" value={entry.ipAddress ?? undefined} />
@@ -136,8 +136,8 @@ function AuditEntryRow({ entry }: { entry: AuditLogEntry }) {
                   </div>
                   <div>
                     <dt className="text-xs font-medium text-muted">Correlation ID</dt>
-                    <dd className="mt-1 flex items-center gap-1">
-                      <code className="flex-1 break-all rounded-md bg-card px-2 py-1.5 font-mono text-xs ring-1 ring-border">
+                    <dd className="mt-1 flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-center">
+                      <code className="min-w-0 w-full flex-1 break-all rounded-md bg-card px-2 py-1.5 font-mono text-xs ring-1 ring-border">
                         {entry.correlationId ?? "—"}
                       </code>
                       <CopyIconButton label="Correlation ID" value={entry.correlationId ?? undefined} />
@@ -145,9 +145,9 @@ function AuditEntryRow({ entry }: { entry: AuditLogEntry }) {
                   </div>
                   <div>
                     <dt className="text-xs font-medium text-muted">User-Agent</dt>
-                    <dd className="mt-1 flex items-start gap-1">
+                    <dd className="mt-1 flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-start">
                       <code
-                        className="max-h-24 flex-1 overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-card px-2 py-1.5 font-mono text-[11px] leading-relaxed ring-1 ring-border"
+                        className="min-w-0 w-full max-h-24 flex-1 overflow-y-auto whitespace-pre-wrap break-all rounded-md bg-card px-2 py-1.5 font-mono text-[11px] leading-relaxed ring-1 ring-border"
                         title={entry.userAgent ?? undefined}
                       >
                         {entry.userAgent ? truncateUa(entry.userAgent) : "—"}
@@ -159,9 +159,9 @@ function AuditEntryRow({ entry }: { entry: AuditLogEntry }) {
               </div>
             ) : null}
             {hasMeta ? (
-              <div className="space-y-2">
+              <div className="min-w-0 space-y-2">
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">Metadata</p>
-                <pre className="max-h-40 overflow-auto rounded-md bg-card p-3 font-mono text-[11px] leading-relaxed ring-1 ring-border">
+                <pre className="min-w-0 max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md bg-card p-3 font-mono text-[11px] leading-relaxed ring-1 ring-border">
                   {JSON.stringify(entry.metadata, null, 2)}
                 </pre>
               </div>
