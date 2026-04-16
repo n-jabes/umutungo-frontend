@@ -36,6 +36,7 @@ import {
   RecordPaymentModal,
 } from "@/components/dashboard/quick-dialogs";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { DashboardCursorTableFooter } from "@/components/dashboard/dashboard-table-pagination";
 import { api } from "@/lib/api";
 import {
   currentMonth,
@@ -67,6 +68,9 @@ const IncomeChart = dynamic(
     ),
   },
 );
+
+/** Max leases listed in Alerts → Unpaid balances (rest via Payments). */
+const UNPAID_BALANCES_ALERT_LIMIT = 5;
 
 export default function DashboardPage() {
   const { user } = useAuth();
@@ -160,20 +164,25 @@ export default function DashboardPage() {
     queryFn: () => api.ownerRiskSummary({ asOf: previousAsOf }),
   });
   const chartRange = useMemo(() => monthRangeLastN(6), []);
-  const riskPagination = useCursorPagination(`${asOf}:${riskFilter}`);
-  const assetRiskPagination = useCursorPagination(asOf);
-  const agingPagination = useCursorPagination(asOf);
-  const qualityPagination = useCursorPagination(`${chartRange.from}:${chartRange.to}`);
+  const [riskDrillLimit, setRiskDrillLimit] = useState(8);
+  const [assetRiskLimit, setAssetRiskLimit] = useState(6);
+  const [agingLimit, setAgingLimit] = useState(8);
+  const [qualityLimit, setQualityLimit] = useState(8);
+
+  const riskPagination = useCursorPagination(`${asOf}:${riskFilter}:${riskDrillLimit}`);
+  const assetRiskPagination = useCursorPagination(`${asOf}:${assetRiskLimit}`);
+  const agingPagination = useCursorPagination(`${asOf}:${agingLimit}`);
+  const qualityPagination = useCursorPagination(`${chartRange.from}:${chartRange.to}:${qualityLimit}`);
 
   const assetRiskCursor = assetRiskPagination.cursor;
   const assetRiskSummaryQuery = useQuery({
-    queryKey: ["analytics", "risk-summary", "assets", asOf, assetRiskPagination.page, assetRiskCursor],
-    queryFn: () => api.assetRiskSummary({ asOf, cursor: assetRiskCursor, limit: 6 }),
+    queryKey: ["analytics", "risk-summary", "assets", asOf, assetRiskLimit, assetRiskPagination.page, assetRiskCursor],
+    queryFn: () => api.assetRiskSummary({ asOf, cursor: assetRiskCursor, limit: assetRiskLimit }),
   });
   const agingCursor = agingPagination.cursor;
   const unpaidAgingQuery = useQuery({
-    queryKey: ["analytics", "unpaid-aging", asOf, agingPagination.page, agingCursor],
-    queryFn: () => api.unpaidAging({ asOf, cursor: agingCursor, limit: 8 }),
+    queryKey: ["analytics", "unpaid-aging", asOf, agingLimit, agingPagination.page, agingCursor],
+    queryFn: () => api.unpaidAging({ asOf, cursor: agingCursor, limit: agingLimit }),
   });
 
   const managerQualityQuery = useQuery({
@@ -182,6 +191,7 @@ export default function DashboardPage() {
       "manager-quality",
       chartRange.from,
       chartRange.to,
+      qualityLimit,
       qualityPagination.page,
       qualityPagination.cursor,
     ],
@@ -190,19 +200,19 @@ export default function DashboardPage() {
         from: chartRange.from,
         to: chartRange.to,
         cursor: qualityPagination.cursor,
-        limit: 8,
+        limit: qualityLimit,
       }),
     enabled: user?.role !== "agent",
   });
   const riskCursor = riskPagination.cursor;
   const riskDrillDownQuery = useQuery({
-    queryKey: ["analytics", "risk-drill-down", asOf, riskFilter, riskPagination.page, riskCursor],
+    queryKey: ["analytics", "risk-drill-down", asOf, riskFilter, riskDrillLimit, riskPagination.page, riskCursor],
     queryFn: () =>
       api.riskDrillDown({
         asOf,
         status: riskFilter === "all" ? undefined : riskFilter,
         cursor: riskCursor,
-        limit: 8,
+        limit: riskDrillLimit,
       }),
   });
   const incomeSeries = useQuery({
@@ -302,6 +312,16 @@ export default function DashboardPage() {
   const riskCounts = ownerRiskSummaryQuery.data?.totals;
   const previousRiskCounts = ownerRiskSummaryPreviousQuery.data?.totals;
   const riskRows = riskDrillDownQuery.data?.items ?? [];
+
+  const leasesWithBalanceRows = useMemo(
+    () => outstandingQuery.data?.leasesWithBalance ?? [],
+    [outstandingQuery.data?.leasesWithBalance],
+  );
+  const unpaidBalancesPreview = useMemo(
+    () => leasesWithBalanceRows.slice(0, UNPAID_BALANCES_ALERT_LIMIT),
+    [leasesWithBalanceRows],
+  );
+  const unpaidBalancesMoreCount = Math.max(0, leasesWithBalanceRows.length - UNPAID_BALANCES_ALERT_LIMIT);
 
   if (workspace !== "rental") {
     return (
@@ -674,31 +694,19 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
-          <div className="mt-3 flex items-center justify-between">
-            <p className="text-xs text-muted">
-              {riskDrillDownQuery.isLoading
-                ? "Loading risk rows..."
-                : `Page ${riskPagination.page}${riskFilter !== "all" ? ` · ${riskFilter}` : ""}`}
-            </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={riskPagination.goPrev}
-                disabled={!riskPagination.canPrev}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                onClick={() => riskPagination.goNext(riskDrillDownQuery.data?.nextCursor)}
-                disabled={!riskDrillDownQuery.data?.nextCursor}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-          </div>
+          {riskFilter !== "all" ? (
+            <p className="mt-2 text-[11px] text-muted">Showing units with status {riskFilter}.</p>
+          ) : null}
+          <DashboardCursorTableFooter
+            page={riskPagination.page}
+            canPrev={riskPagination.canPrev}
+            onPrev={riskPagination.goPrev}
+            onNext={() => riskPagination.goNext(riskDrillDownQuery.data?.nextCursor)}
+            nextDisabled={!riskDrillDownQuery.data?.nextCursor}
+            pageSize={riskDrillLimit}
+            onPageSizeChange={setRiskDrillLimit}
+            isLoading={riskDrillDownQuery.isLoading}
+          />
         </Card>
       </section>
 
@@ -742,27 +750,16 @@ export default function DashboardPage() {
               </tbody>
             </table>
           </div>
-          <div className="mt-3 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={assetRiskPagination.goPrev}
-              disabled={!assetRiskPagination.canPrev}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <span className="text-xs text-muted">
-              Page {assetRiskPagination.page}
-            </span>
-            <button
-              type="button"
-              onClick={() => assetRiskPagination.goNext(assetRiskSummaryQuery.data?.nextCursor)}
-              disabled={!assetRiskSummaryQuery.data?.nextCursor}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
+          <DashboardCursorTableFooter
+            page={assetRiskPagination.page}
+            canPrev={assetRiskPagination.canPrev}
+            onPrev={assetRiskPagination.goPrev}
+            onNext={() => assetRiskPagination.goNext(assetRiskSummaryQuery.data?.nextCursor)}
+            nextDisabled={!assetRiskSummaryQuery.data?.nextCursor}
+            pageSize={assetRiskLimit}
+            onPageSizeChange={setAssetRiskLimit}
+            isLoading={assetRiskSummaryQuery.isLoading}
+          />
         </Card>
 
         <Card className="p-5">
@@ -803,37 +800,33 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {(unpaidAgingQuery.data?.items ?? []).slice(0, 5).map((row) => (
+                {(unpaidAgingQuery.data?.items ?? []).map((row) => (
                   <tr key={row.unitId}>
                     <td className="py-2 text-foreground">{row.unitName ?? "Unnamed"}</td>
                     <td className="py-2 text-muted">{row.bucket}</td>
                     <td className="py-2 text-right tabular-nums-fin">{row.overdueDays}d</td>
                   </tr>
                 ))}
+                {!unpaidAgingQuery.isLoading && (unpaidAgingQuery.data?.items?.length ?? 0) === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-4 text-center text-muted">
+                      No delinquent units on this page.
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
-          <div className="mt-3 flex items-center justify-end gap-2">
-            <button
-              type="button"
-              onClick={agingPagination.goPrev}
-              disabled={!agingPagination.canPrev}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <span className="text-xs text-muted">
-              Page {agingPagination.page}
-            </span>
-            <button
-              type="button"
-              onClick={() => agingPagination.goNext(unpaidAgingQuery.data?.nextCursor)}
-              disabled={!unpaidAgingQuery.data?.nextCursor}
-              className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
-            >
-              Next
-            </button>
-          </div>
+          <DashboardCursorTableFooter
+            page={agingPagination.page}
+            canPrev={agingPagination.canPrev}
+            onPrev={agingPagination.goPrev}
+            onNext={() => agingPagination.goNext(unpaidAgingQuery.data?.nextCursor)}
+            nextDisabled={!unpaidAgingQuery.data?.nextCursor}
+            pageSize={agingLimit}
+            onPageSizeChange={setAgingLimit}
+            isLoading={unpaidAgingQuery.isLoading}
+          />
         </Card>
       </section>
 
@@ -892,27 +885,16 @@ export default function DashboardPage() {
                 </tbody>
               </table>
             </div>
-            <div className="mt-3 flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={qualityPagination.goPrev}
-                disabled={!qualityPagination.canPrev}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <span className="text-xs text-muted">
-                Page {qualityPagination.page}
-              </span>
-              <button
-                type="button"
-                onClick={() => qualityPagination.goNext(managerQualityQuery.data?.nextCursor)}
-                disabled={!managerQualityQuery.data?.nextCursor}
-                className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
+            <DashboardCursorTableFooter
+              page={qualityPagination.page}
+              canPrev={qualityPagination.canPrev}
+              onPrev={qualityPagination.goPrev}
+              onNext={() => qualityPagination.goNext(managerQualityQuery.data?.nextCursor)}
+              nextDisabled={!managerQualityQuery.data?.nextCursor}
+              pageSize={qualityLimit}
+              onPageSizeChange={setQualityLimit}
+              isLoading={managerQualityQuery.isLoading}
+            />
           </Card>
         </section>
       ) : null}
@@ -940,13 +922,14 @@ export default function DashboardPage() {
             <CardDescription>Items that need attention</CardDescription>
           </CardHeader>
           <CardContent className="mt-5 space-y-4 p-0">
-            {(outstandingQuery.data?.leasesWithBalance?.length ?? 0) > 0 ? (
+            {leasesWithBalanceRows.length > 0 ? (
               <div className="flex gap-3 rounded-xl border border-amber-200/80 bg-gold-soft/60 p-4">
                 <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-accent-gold" strokeWidth={1.75} />
-                <div>
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium text-foreground">Unpaid balances</p>
+                  <p className="mt-0.5 text-[11px] text-muted">Leases with a balance for {month} (highest due first).</p>
                   <ul className="mt-2 space-y-2 text-xs text-muted">
-                    {outstandingQuery.data?.leasesWithBalance.slice(0, 4).map((row) => (
+                    {unpaidBalancesPreview.map((row) => (
                       <li key={row.leaseId} className="flex justify-between gap-2">
                         <span className="truncate">
                           {row.assetName}
@@ -958,9 +941,9 @@ export default function DashboardPage() {
                       </li>
                     ))}
                   </ul>
-                  {(outstandingQuery.data?.leasesWithBalance.length ?? 0) > 4 ? (
+                  {unpaidBalancesMoreCount > 0 ? (
                     <p className="mt-2 text-[11px] text-muted">
-                      +{(outstandingQuery.data?.leasesWithBalance.length ?? 0) - 4} more
+                      +{unpaidBalancesMoreCount} more in Payments
                     </p>
                   ) : null}
                   <Link
