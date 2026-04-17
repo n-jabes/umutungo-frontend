@@ -28,6 +28,7 @@ import type {
   PlanVersionDetail,
   PublishPreview,
   PlanCompareResponse,
+  PlatformDashboardSummary,
   CatalogFeature,
   SubscriptionAdminListResponse,
   SubscriptionOwnerAccountsResponse,
@@ -192,6 +193,11 @@ export const api = {
   /** Requires JWT with `role: admin`. */
   async getPlatformEntitlements(ownerId: string) {
     const { data } = await rawApi.get<Ok<EntitlementsPayload>>(`/platform/entitlements/${ownerId}`);
+    return unwrap(data);
+  },
+
+  async getPlatformDashboardSummary() {
+    const { data } = await rawApi.get<Ok<PlatformDashboardSummary>>("/platform/dashboard/summary");
     return unwrap(data);
   },
 

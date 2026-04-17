@@ -26,6 +26,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { type Workspace, useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
 import { PlanUsageBanner } from "@/components/plan/plan-usage-banner";
+import { PlatformCommandPalette } from "@/components/platform/platform-command-palette";
 
 /* ─────────────────────────────────────────────────────────────────
    Nav definitions — order here is the order they render
@@ -190,6 +191,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const { workspace, setWorkspace } = useWorkspace();
   const router = useRouter();
+  const pathname = usePathname();
   const [drawer, setDrawer] = useState(false);
   const isAgent = user?.role === "agent";
   const canUsePlatform = user?.role === "owner" || user?.role === "admin";
@@ -255,6 +257,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-2 py-2 backdrop-blur-md lg:hidden">
         <NavLinks variant="mobile-bar" workspace={workspace} itemsOverride={navItems} />
       </div>
+
+      {user?.role === "admin" && pathname.startsWith("/platform") ? <PlatformCommandPalette /> : null}
 
       {drawer && (
         <div className="fixed inset-0 z-50 lg:hidden">

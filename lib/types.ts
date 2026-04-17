@@ -116,6 +116,34 @@ export type PlanCompareResponse = {
   }>;
 };
 
+/** `GET /platform/dashboard/summary` — admin platform home (Module 6). */
+export type PlatformDashboardSummary = {
+  generatedAt: string;
+  subscriptions: { active: number; trialing: number; total: number };
+  trialsEndingSoon: Array<{
+    ownerId: string;
+    ownerName: string;
+    ownerEmail: string | null;
+    ownerPhone: string | null;
+    planKey: string;
+    planName: string;
+    trialEndsAt: string;
+    daysRemaining: number;
+  }>;
+  overLimitAccounts: Array<{
+    ownerId: string;
+    name: string;
+    email: string | null;
+    unitsCurrent: number;
+    unitsMax: number | null;
+    agentsCurrent: number;
+    agentsMax: number | null;
+    overUnits: boolean;
+    overAgents: boolean;
+  }>;
+  overLimitSampleSize: number;
+};
+
 export type SubscriptionAdminRow = {
   id: string;
   ownerId: string;

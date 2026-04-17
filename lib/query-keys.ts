@@ -53,6 +53,7 @@ export const queryKeys = {
   platformPlanVersion: (versionId: string) => ["platform", "plan-versions", versionId] as const,
   platformPlanCompare: (keysCsv: string) => ["platform", "plans", "compare", keysCsv] as const,
   platformFeatures: ["platform", "features"] as const,
+  platformDashboard: ["platform", "dashboard", "summary"] as const,
   platformSubscriptions: (params: {
     page: number;
     pageSize: number;
