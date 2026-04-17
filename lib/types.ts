@@ -19,6 +19,42 @@ export type UserPublic = {
   createdAt: string;
 };
 
+/** Resolved plan limits + optional grants (`GET /me/entitlements`, `GET /platform/entitlements/:ownerId`). */
+export type EntitlementsPayload = {
+  ownerId: string;
+  resolvedAt: string;
+  source: "subscription" | "default_plan";
+  subscription: {
+    id: string;
+    status: "active" | "trialing" | "canceled" | "expired";
+    planKey: string;
+    planVersionId: string;
+    version: number;
+    trialEndsAt: string | null;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    canceledAt: string | null;
+    effective: boolean;
+  } | null;
+  plan: {
+    key: string;
+    name: string;
+    planVersionId: string;
+    version: number;
+    status: "draft" | "published";
+    publishedAt: string | null;
+  };
+  features: Record<string, boolean | number | string | null>;
+  grants: Array<{
+    id: string;
+    featureKey: string;
+    value: boolean | number | string | null;
+    reason: string | null;
+    expiresAt: string | null;
+    createdAt: string;
+  }>;
+};
+
 export type AuditLogEntry = {
   id: string;
   userId: string | null;

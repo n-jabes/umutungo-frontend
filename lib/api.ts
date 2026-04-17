@@ -22,6 +22,7 @@ import type {
   AssetRentStatusResponse,
   UserPublic,
   OnboardingBootstrap,
+  EntitlementsPayload,
   AgentCreateResult,
   PaginatedAuditLogs,
   PaymentProof,
@@ -156,6 +157,17 @@ export const api = {
     const { data } = await rawApi.get<Ok<OnboardingBootstrap>>("/auth/me/onboarding", {
       params: params?.month ? { month: params.month } : undefined,
     });
+    return unwrap(data);
+  },
+
+  async getMeEntitlements() {
+    const { data } = await rawApi.get<Ok<EntitlementsPayload>>("/me/entitlements");
+    return unwrap(data);
+  },
+
+  /** Requires JWT with `role: admin`. */
+  async getPlatformEntitlements(ownerId: string) {
+    const { data } = await rawApi.get<Ok<EntitlementsPayload>>(`/platform/entitlements/${ownerId}`);
     return unwrap(data);
   },
 
