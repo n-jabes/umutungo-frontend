@@ -1,0 +1,469 @@
+"use client";
+
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
+import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
+import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
+import { useAuth } from "@/contexts/auth-context";
+import { api, getErrorMessage } from "@/lib/api";
+import { queryKeys } from "@/lib/query-keys";
+import type { PlanVersionMatrixRow } from "@/lib/types";
+
+function matrixToDraft(rows: PlanVersionMatrixRow[]) {
+  const m: Record<string, unknown> = {};
+  for (const r of rows) {
+    m[r.feature.key] = r.value;
+  }
+  return m;
+}
+
+export default function PlatformPlanDetailPage() {
+  const params = useParams();
+  const planKey = typeof params.planKey === "string" ? params.planKey : "";
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+  const qc = useQueryClient();
+
+  const plan = useQuery({
+    queryKey: queryKeys.platformPlan(planKey),
+    queryFn: () => api.getPlatformPlan(planKey),
+    enabled: isAdmin && !!planKey,
+  });
+
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
+  const [metaName, setMetaName] = useState("");
+  const [metaDesc, setMetaDesc] = useState("");
+  const [matrixDraft, setMatrixDraft] = useState<Record<string, unknown>>({});
+  const [publishOpen, setPublishOpen] = useState(false);
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof api.previewPublishPlatformPlanVersion>> | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (!plan.data) return;
+    setMetaName(plan.data.name);
+    setMetaDesc(plan.data.description ?? "");
+  }, [plan.data]);
+
+  const defaultVersionId = useMemo(() => {
+    const p = plan.data;
+    if (!p?.versions?.length) return null;
+    const draft = p.versions.find((v) => v.status === "draft");
+    if (draft) return draft.id;
+    const published = p.versions.filter((v) => v.status === "published");
+    if (!published.length) return p.versions[0]?.id ?? null;
+    return published.reduce((a, b) => (a.version >= b.version ? a : b)).id;
+  }, [plan.data]);
+
+  useEffect(() => {
+    if (defaultVersionId && !selectedVersionId) setSelectedVersionId(defaultVersionId);
+  }, [defaultVersionId, selectedVersionId]);
+
+  const versionDetail = useQuery({
+    queryKey: queryKeys.platformPlanVersion(selectedVersionId ?? ""),
+    queryFn: () => api.getPlatformPlanVersion(selectedVersionId!),
+    enabled: isAdmin && !!selectedVersionId,
+  });
+
+  useEffect(() => {
+    if (!versionDetail.data?.matrix) return;
+    setMatrixDraft(matrixToDraft(versionDetail.data.matrix));
+  }, [versionDetail.data?.id]);
+
+  const selectedBrief = plan.data?.versions.find((v) => v.id === selectedVersionId);
+  const isDraftSelected = selectedBrief?.status === "draft";
+
+  const saveMeta = useMutation({
+    mutationFn: () =>
+      api.patchPlatformPlan(planKey, {
+        name: metaName.trim(),
+        description: metaDesc.trim() === "" ? null : metaDesc.trim(),
+      }),
+    onSuccess: async () => {
+      toast.success("Plan updated");
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlan(planKey) });
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlans });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const createDraft = useMutation({
+    mutationFn: () => api.createPlatformPlanDraft(planKey, {}),
+    onSuccess: async (v) => {
+      toast.success(`Draft v${v.version} created`);
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlan(planKey) });
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlans });
+      setSelectedVersionId(v.id);
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const saveMatrix = useMutation({
+    mutationFn: () => api.patchPlatformPlanVersionMatrix(selectedVersionId!, matrixDraft),
+    onSuccess: async () => {
+      toast.success("Matrix saved");
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlanVersion(selectedVersionId!) });
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlan(planKey) });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const deleteDraft = useMutation({
+    mutationFn: () => api.deletePlatformPlanDraft(selectedVersionId!),
+    onSuccess: async () => {
+      toast.success("Draft deleted");
+      setSelectedVersionId(null);
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlan(planKey) });
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlans });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const runPreview = useMutation({
+    mutationFn: () => api.previewPublishPlatformPlanVersion(selectedVersionId!),
+    onSuccess: (p) => {
+      setPreview(p);
+      setPublishOpen(true);
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const confirmPublish = useMutation({
+    mutationFn: () => api.publishPlatformPlanVersion(selectedVersionId!),
+    onSuccess: async () => {
+      toast.success("Version published");
+      setPublishOpen(false);
+      setPreview(null);
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlan(planKey) });
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlans });
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlanCompare("starter,growth,pro") });
+      if (selectedVersionId) await qc.invalidateQueries({ queryKey: queryKeys.platformPlanVersion(selectedVersionId) });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  if (!planKey) {
+    return (
+      <PlatformAccessGuard>
+        <PlatformPageShell title="Plan" description="Missing plan key." />
+      </PlatformAccessGuard>
+    );
+  }
+
+  return (
+    <PlatformAccessGuard>
+      <PlatformPageShell
+        title={plan.data ? plan.data.name : "Plan"}
+        description="Edit metadata and the feature matrix on a draft. Publishing freezes this snapshot; subscribers pick it up as the latest published version for this plan key."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" asChild>
+              <Link href="/platform/plans">All plans</Link>
+            </Button>
+            <Button variant="secondary" asChild>
+              <Link href="/platform/plans/compare">Compare plans</Link>
+            </Button>
+          </div>
+        }
+      >
+        {!isAdmin ? (
+          <PlatformSectionCard title="Admin only" description="Plan editing requires an admin account.">
+            <p className="text-sm text-muted">Sign in as a platform admin.</p>
+          </PlatformSectionCard>
+        ) : plan.isError ? (
+          <PlatformSectionCard title="Could not load plan" description={getErrorMessage(plan.error)} />
+        ) : (
+          <>
+            <PlatformSectionCard title="Metadata" description="Display name and description (plan key stays fixed).">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block text-xs font-medium text-muted">
+                  Name
+                  <input
+                    className="mt-1 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm"
+                    value={metaName}
+                    onChange={(e) => setMetaName(e.target.value)}
+                  />
+                </label>
+                <label className="block text-xs font-medium text-muted sm:col-span-2">
+                  Description
+                  <textarea
+                    className="mt-1 min-h-[72px] w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                    value={metaDesc}
+                    onChange={(e) => setMetaDesc(e.target.value)}
+                  />
+                </label>
+              </div>
+              <Button
+                className="mt-3"
+                disabled={saveMeta.isPending || !plan.data}
+                onClick={() => saveMeta.mutate()}
+              >
+                Save metadata
+              </Button>
+            </PlatformSectionCard>
+
+            <PlatformSectionCard
+              title="Versions"
+              description="Select a version to inspect. Only drafts accept matrix edits."
+            >
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                <label className="flex flex-col text-xs font-medium text-muted sm:min-w-[220px]">
+                  Active version
+                  <select
+                    className="mt-1 h-10 rounded-lg border border-border bg-card px-3 text-sm"
+                    value={selectedVersionId ?? ""}
+                    onChange={(e) => setSelectedVersionId(e.target.value || null)}
+                  >
+                    {(plan.data?.versions ?? []).map((v) => (
+                      <option key={v.id} value={v.id}>
+                        v{v.version} · {v.status}
+                        {v.publishedAt ? ` · ${v.publishedAt.slice(0, 10)}` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  variant="secondary"
+                  disabled={createDraft.isPending || !plan.data?.versions || !!plan.data.versions.find((x) => x.status === "draft")}
+                  onClick={() => createDraft.mutate()}
+                >
+                  New draft from latest published
+                </Button>
+                {isDraftSelected ? (
+                  <Button
+                    variant="danger"
+                    disabled={deleteDraft.isPending}
+                    onClick={() => {
+                      if (confirm("Delete this draft? This cannot be undone.")) deleteDraft.mutate();
+                    }}
+                  >
+                    Delete draft
+                  </Button>
+                ) : null}
+              </div>
+            </PlatformSectionCard>
+
+            <PlatformSectionCard
+              title="Feature matrix"
+              description={
+                isDraftSelected
+                  ? "Changes are saved to this draft only. Publish when ready."
+                  : "Published versions are read-only. Create a draft to edit."
+              }
+            >
+              {versionDetail.isLoading ? (
+                <p className="text-sm text-muted">Loading matrix…</p>
+              ) : versionDetail.isError ? (
+                <p className="text-sm text-destructive">{getErrorMessage(versionDetail.error)}</p>
+              ) : (
+                <div className="space-y-3">
+                  {(versionDetail.data?.matrix ?? []).map((row) => (
+                    <MatrixRowEditor
+                      key={row.featureId}
+                      row={row}
+                      disabled={!isDraftSelected}
+                      value={matrixDraft[row.feature.key] ?? row.value}
+                      onChange={(v) => setMatrixDraft((prev) => ({ ...prev, [row.feature.key]: v }))}
+                    />
+                  ))}
+                  <div className="flex flex-wrap gap-2 pt-2">
+                    <Button
+                      disabled={!isDraftSelected || saveMatrix.isPending || !selectedVersionId}
+                      onClick={() => saveMatrix.mutate()}
+                    >
+                      Save matrix
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      disabled={!isDraftSelected || runPreview.isPending || !selectedVersionId}
+                      onClick={() => runPreview.mutate()}
+                    >
+                      Preview publish
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </PlatformSectionCard>
+          </>
+        )}
+      </PlatformPageShell>
+
+      <Modal
+        open={publishOpen}
+        onClose={() => {
+          setPublishOpen(false);
+          setPreview(null);
+        }}
+        title="Publish version"
+        description="Review changes against the previous latest published snapshot, then confirm."
+        size="lg"
+      >
+        {preview ? (
+          <div className="space-y-4">
+            <p className="text-sm text-muted">
+              Plan <span className="font-medium text-foreground">{preview.planKey}</span> — draft v
+              {preview.draftVersion}
+              {preview.previousPublished
+                ? ` · was v${preview.previousPublished.version} published`
+                : " · first publish"}
+            </p>
+            <div className="max-h-[50vh] overflow-auto rounded-lg border border-border">
+              <table className="w-full text-left text-sm">
+                <thead className="sticky top-0 bg-muted-bg/95 text-xs uppercase text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Feature</th>
+                    <th className="px-3 py-2">Before</th>
+                    <th className="px-3 py-2">After</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.diff.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-3 py-4 text-muted">
+                        No differences vs previous published (still publishing locks this snapshot).
+                      </td>
+                    </tr>
+                  ) : (
+                    preview.diff.map((d) => (
+                      <tr key={d.featureKey} className="border-t border-border/80">
+                        <td className="px-3 py-2 font-mono text-xs">{d.featureKey}</td>
+                        <td className="px-3 py-2 text-muted">{String(d.before)}</td>
+                        <td className="px-3 py-2 font-medium text-foreground">{String(d.after)}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setPublishOpen(false)}>
+                Cancel
+              </Button>
+              <Button disabled={confirmPublish.isPending} onClick={() => confirmPublish.mutate()}>
+                Confirm publish
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted">Loading preview…</p>
+        )}
+      </Modal>
+    </PlatformAccessGuard>
+  );
+}
+
+function MatrixRowEditor({
+  row,
+  value,
+  disabled,
+  onChange,
+}: {
+  row: PlanVersionMatrixRow;
+  value: unknown;
+  disabled: boolean;
+  onChange: (v: unknown) => void;
+}) {
+  const f = row.feature;
+  const opts = f.enumOptions?.length ? f.enumOptions : null;
+
+  if (f.valueType === "boolean") {
+    return (
+      <div className="flex flex-col gap-1 rounded-lg border border-border/80 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-foreground">{f.name}</p>
+          <p className="font-mono text-[11px] text-muted">{f.key}</p>
+        </div>
+        <select
+          className="h-9 max-w-[200px] rounded-lg border border-border bg-card px-2 text-sm"
+          disabled={disabled}
+          value={value === true ? "true" : value === false ? "false" : ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === "") onChange(null);
+            else onChange(v === "true");
+          }}
+        >
+          <option value="">(unset)</option>
+          <option value="true">true</option>
+          <option value="false">false</option>
+        </select>
+      </div>
+    );
+  }
+
+  if (f.valueType === "number") {
+    return (
+      <div className="flex flex-col gap-1 rounded-lg border border-border/80 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-foreground">{f.name}</p>
+          <p className="font-mono text-[11px] text-muted">{f.key}</p>
+        </div>
+        <input
+          type="number"
+          className="h-9 w-full max-w-[200px] rounded-lg border border-border bg-card px-2 text-sm sm:text-right"
+          disabled={disabled}
+          value={value === null || value === undefined ? "" : String(value)}
+          onChange={(e) => {
+            const raw = e.target.value;
+            if (raw === "") onChange(null);
+            else {
+              const n = parseInt(raw, 10);
+              onChange(Number.isFinite(n) ? n : null);
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (opts) {
+    return (
+      <div className="flex flex-col gap-1 rounded-lg border border-border/80 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-foreground">{f.name}</p>
+          <p className="font-mono text-[11px] text-muted">{f.key}</p>
+        </div>
+        <select
+          className="h-9 max-w-[220px] rounded-lg border border-border bg-card px-2 text-sm"
+          disabled={disabled}
+          value={typeof value === "string" ? value : ""}
+          onChange={(e) => {
+            const v = e.target.value;
+            onChange(v === "" ? null : v);
+          }}
+        >
+          <option value="">(unset)</option>
+          {opts.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1 rounded-lg border border-border/80 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-sm font-medium text-foreground">{f.name}</p>
+        <p className="font-mono text-[11px] text-muted">{f.key}</p>
+      </div>
+      <input
+        type="text"
+        className="h-9 w-full max-w-[260px] rounded-lg border border-border bg-card px-2 text-sm"
+        disabled={disabled}
+        value={value == null ? "" : String(value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === "" ? null : v);
+        }}
+      />
+    </div>
+  );
+}

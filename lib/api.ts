@@ -23,6 +23,12 @@ import type {
   UserPublic,
   OnboardingBootstrap,
   EntitlementsPayload,
+  PlanListItem,
+  PlanDetail,
+  PlanVersionDetail,
+  PublishPreview,
+  PlanCompareResponse,
+  CatalogFeature,
   AgentCreateResult,
   PaginatedAuditLogs,
   PaymentProof,
@@ -168,6 +174,96 @@ export const api = {
   /** Requires JWT with `role: admin`. */
   async getPlatformEntitlements(ownerId: string) {
     const { data } = await rawApi.get<Ok<EntitlementsPayload>>(`/platform/entitlements/${ownerId}`);
+    return unwrap(data);
+  },
+
+  async listPlatformPlans() {
+    const { data } = await rawApi.get<Ok<PlanListItem[]>>("/platform/plans");
+    return unwrap(data);
+  },
+
+  async getPlatformPlan(planKey: string) {
+    const { data } = await rawApi.get<Ok<PlanDetail>>(`/platform/plans/${encodeURIComponent(planKey)}`);
+    return unwrap(data);
+  },
+
+  async patchPlatformPlan(planKey: string, body: { name?: string; description?: string | null }) {
+    const { data } = await rawApi.patch<Ok<Pick<PlanDetail, "id" | "key" | "name" | "description" | "createdAt">>>(
+      `/platform/plans/${encodeURIComponent(planKey)}`,
+      body,
+    );
+    return unwrap(data);
+  },
+
+  async createPlatformPlanDraft(planKey: string, body?: { cloneFromVersion?: number | null }) {
+    const { data } = await rawApi.post<Ok<PlanVersionDetail>>(
+      `/platform/plans/${encodeURIComponent(planKey)}/versions`,
+      body ?? {},
+    );
+    return unwrap(data);
+  },
+
+  async getPlatformPlanVersion(versionId: string) {
+    const { data } = await rawApi.get<Ok<PlanVersionDetail>>(`/platform/plan-versions/${versionId}`);
+    return unwrap(data);
+  },
+
+  async patchPlatformPlanVersionMatrix(versionId: string, matrix: Record<string, unknown>) {
+    const { data } = await rawApi.patch<Ok<PlanVersionDetail>>(`/platform/plan-versions/${versionId}/matrix`, {
+      matrix,
+    });
+    return unwrap(data);
+  },
+
+  async previewPublishPlatformPlanVersion(versionId: string) {
+    const { data } = await rawApi.post<Ok<PublishPreview>>(
+      `/platform/plan-versions/${versionId}/preview-publish`,
+      {},
+    );
+    return unwrap(data);
+  },
+
+  async publishPlatformPlanVersion(versionId: string) {
+    const { data } = await rawApi.post<Ok<{ published: PlanVersionDetail; preview: PublishPreview }>>(
+      `/platform/plan-versions/${versionId}/publish`,
+      {},
+    );
+    return unwrap(data);
+  },
+
+  async deletePlatformPlanDraft(versionId: string) {
+    const { data } = await rawApi.delete<Ok<{ deleted: boolean }>>(`/platform/plan-versions/${versionId}`);
+    return unwrap(data);
+  },
+
+  async comparePlatformPlans(keys: string[]) {
+    const { data } = await rawApi.get<Ok<PlanCompareResponse>>("/platform/plans/compare", {
+      params: { keys: keys.join(",") },
+    });
+    return unwrap(data);
+  },
+
+  async listPlatformFeatures() {
+    const { data } = await rawApi.get<Ok<CatalogFeature[]>>("/platform/features");
+    return unwrap(data);
+  },
+
+  async createPlatformFeature(body: {
+    key: string;
+    name: string;
+    description?: string | null;
+    valueType: "boolean" | "number" | "string";
+    enumOptions?: string[] | null;
+  }) {
+    const { data } = await rawApi.post<Ok<CatalogFeature>>("/platform/features", body);
+    return unwrap(data);
+  },
+
+  async patchPlatformFeature(
+    id: string,
+    body: { name?: string; description?: string | null; enumOptions?: string[] | null },
+  ) {
+    const { data } = await rawApi.patch<Ok<CatalogFeature>>(`/platform/features/${id}`, body);
     return unwrap(data);
   },
 

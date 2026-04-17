@@ -20,6 +20,85 @@ export type UserPublic = {
 };
 
 /** Resolved plan limits + optional grants (`GET /me/entitlements`, `GET /platform/entitlements/:ownerId`). */
+export type CatalogFeature = {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  valueType: "boolean" | "number" | "string";
+  enumOptions: string[] | null;
+  createdAt: string;
+};
+
+export type PlanVersionBrief = {
+  id: string;
+  version: number;
+  status: "draft" | "published";
+  publishedAt: string | null;
+  createdAt: string;
+  featureValueCount?: number;
+};
+
+export type PlanListItem = {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  latestPublished: PlanVersionBrief | null;
+  draft: PlanVersionBrief | null;
+  versionCount: number;
+};
+
+export type PlanDetail = {
+  id: string;
+  key: string;
+  name: string;
+  description: string | null;
+  createdAt: string;
+  versions: PlanVersionBrief[];
+};
+
+export type PlanVersionMatrixRow = {
+  featureId: string;
+  feature: CatalogFeature;
+  valueBoolean: boolean | null;
+  valueNumber: number | null;
+  valueString: string | null;
+  value: boolean | number | string | null;
+};
+
+export type PlanVersionDetail = {
+  id: string;
+  planId: string;
+  planKey?: string;
+  version: number;
+  status: "draft" | "published";
+  publishedAt: string | null;
+  createdAt: string;
+  matrix: PlanVersionMatrixRow[];
+};
+
+export type PublishPreview = {
+  planKey: string;
+  draftVersion: number;
+  draftVersionId: string;
+  previousPublished: { version: number; id: string; publishedAt: string | null } | null;
+  diff: Array<{ featureKey: string; before: unknown; after: unknown }>;
+};
+
+export type PlanCompareResponse = {
+  featureKeys: string[];
+  plans: Array<{
+    planKey: string;
+    planName: string;
+    planVersionId: string | null;
+    version: number | null;
+    publishedAt: string | null;
+    features: Record<string, boolean | number | string | null>;
+  }>;
+};
+
 export type EntitlementsPayload = {
   ownerId: string;
   resolvedAt: string;

@@ -46,4 +46,9 @@ export const queryKeys = {
     ["payments", "summary-range", from, to] as const,
   paymentsLease: (leaseId: string) => ["payments", "lease", leaseId] as const,
   paymentProofs: (paymentId: string) => ["payments", paymentId, "proofs"] as const,
+  platformPlans: ["platform", "plans"] as const,
+  platformPlan: (planKey: string) => ["platform", "plans", planKey] as const,
+  platformPlanVersion: (versionId: string) => ["platform", "plan-versions", versionId] as const,
+  platformPlanCompare: (keysCsv: string) => ["platform", "plans", "compare", keysCsv] as const,
+  platformFeatures: ["platform", "features"] as const,
 };

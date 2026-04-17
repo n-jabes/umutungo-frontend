@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   Building2,
   FileText,
+  GitCompareArrows,
   Home,
   LayoutDashboard,
   LineChart,
@@ -45,6 +46,7 @@ const navByWorkspace = {
   platform: [
     { href: "/platform",               label: "Overview",      icon: ShieldCheck },
     { href: "/platform/plans",         label: "Plans",         icon: FileText },
+    { href: "/platform/plans/compare", label: "Compare",       icon: GitCompareArrows },
     { href: "/platform/subscriptions", label: "Subscriptions", icon: Wallet },
     { href: "/platform/accounts",      label: "Accounts",      icon: Users },
   ],
