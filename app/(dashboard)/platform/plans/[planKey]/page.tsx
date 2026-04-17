@@ -6,8 +6,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
+import { PlatformSafetyDialog } from "@/components/platform/platform-safety-dialog";
+import { usePlatformTwoStepPreference } from "@/components/platform/use-platform-two-step-preference";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
 import { Button, buttonClassName } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
@@ -28,6 +31,7 @@ export default function PlatformPlanDetailPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const qc = useQueryClient();
+  const { twoStepRequired } = usePlatformTwoStepPreference();
 
   const plan = useQuery({
     queryKey: queryKeys.platformPlan(planKey),
@@ -43,6 +47,12 @@ export default function PlatformPlanDetailPage() {
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof api.previewPublishPlatformPlanVersion>> | null>(
     null,
   );
+  const [publishReason, setPublishReason] = useState("");
+  const [publishPhrase, setPublishPhrase] = useState("");
+  const [deleteDraftOpen, setDeleteDraftOpen] = useState(false);
+  const [rollbackReason, setRollbackReason] = useState("");
+  const [rollbackFromVersion, setRollbackFromVersion] = useState<number | null>(null);
+  const [rollbackSafetyOpen, setRollbackSafetyOpen] = useState(false);
 
   useEffect(() => {
     if (!plan.data) return;
@@ -78,6 +88,29 @@ export default function PlatformPlanDetailPage() {
 
   const selectedBrief = plan.data?.versions.find((v) => v.id === selectedVersionId);
   const isDraftSelected = selectedBrief?.status === "draft";
+
+  const publishedSorted = useMemo(() => {
+    return (plan.data?.versions ?? [])
+      .filter((v) => v.status === "published")
+      .sort((a, b) => b.version - a.version);
+  }, [plan.data?.versions]);
+
+  useEffect(() => {
+    if (!publishOpen) {
+      setPublishReason("");
+      setPublishPhrase("");
+    }
+  }, [publishOpen]);
+
+  useEffect(() => {
+    setRollbackFromVersion(null);
+  }, [planKey]);
+
+  useEffect(() => {
+    if (!plan.data || rollbackFromVersion !== null) return;
+    if (!publishedSorted.length) return;
+    setRollbackFromVersion(publishedSorted.length >= 2 ? publishedSorted[1].version : publishedSorted[0].version);
+  }, [plan.data, publishedSorted, rollbackFromVersion]);
 
   const saveMeta = useMutation({
     mutationFn: () =>
@@ -135,7 +168,7 @@ export default function PlatformPlanDetailPage() {
   });
 
   const confirmPublish = useMutation({
-    mutationFn: () => api.publishPlatformPlanVersion(selectedVersionId!),
+    mutationFn: (reason: string) => api.publishPlatformPlanVersion(selectedVersionId!, { reason }),
     onSuccess: async () => {
       toast.success("Version published");
       setPublishOpen(false);
@@ -144,6 +177,23 @@ export default function PlatformPlanDetailPage() {
       await qc.invalidateQueries({ queryKey: queryKeys.platformPlans });
       await qc.invalidateQueries({ queryKey: queryKeys.platformPlanCompare("starter,growth,pro") });
       if (selectedVersionId) await qc.invalidateQueries({ queryKey: queryKeys.platformPlanVersion(selectedVersionId) });
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
+  const rollbackMut = useMutation({
+    mutationFn: () =>
+      api.rollbackPlatformPlan(planKey, {
+        cloneFromVersion: rollbackFromVersion!,
+        reason: rollbackReason.trim(),
+      }),
+    onSuccess: async (v) => {
+      toast.success(`Rollback draft v${v.version} created`);
+      setRollbackSafetyOpen(false);
+      setRollbackReason("");
+      setSelectedVersionId(v.id);
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlan(planKey) });
+      await qc.invalidateQueries({ queryKey: queryKeys.platformPlans });
     },
     onError: (e) => toast.error(getErrorMessage(e)),
   });
@@ -170,6 +220,9 @@ export default function PlatformPlanDetailPage() {
             </Link>
             <Link href="/platform/plans/compare" className={buttonClassName({ variant: "secondary" })}>
               Compare plans
+            </Link>
+            <Link href="/platform/audit" className={buttonClassName({ variant: "secondary" })}>
+              Audit log
             </Link>
           </div>
         }
@@ -238,17 +291,62 @@ export default function PlatformPlanDetailPage() {
                   New draft from latest published
                 </Button>
                 {isDraftSelected ? (
-                  <Button
-                    variant="danger"
-                    disabled={deleteDraft.isPending}
-                    onClick={() => {
-                      if (confirm("Delete this draft? This cannot be undone.")) deleteDraft.mutate();
-                    }}
-                  >
+                  <Button variant="danger" disabled={deleteDraft.isPending} onClick={() => setDeleteDraftOpen(true)}>
                     Delete draft
                   </Button>
                 ) : null}
               </div>
+            </PlatformSectionCard>
+
+            <PlatformSectionCard
+              title="Rollback helper"
+              description="When a published matrix misbehaves, start a new draft cloned from an older published snapshot. No draft may exist yet; then preview and publish with a separate publish reason."
+            >
+              {publishedSorted.length === 0 ? (
+                <p className="text-sm text-muted">No published versions yet — publish a first version before rollback is meaningful.</p>
+              ) : plan.data?.versions.some((v) => v.status === "draft") ? (
+                <p className="text-sm text-muted">Finish or delete the current draft before creating a rollback draft.</p>
+              ) : (
+                <div className="flex flex-col gap-3 sm:max-w-lg">
+                  <label className="text-xs font-medium text-muted">
+                    Clone published version
+                    <select
+                      className="mt-1 h-10 w-full rounded-lg border border-border bg-card px-3 text-sm"
+                      value={rollbackFromVersion ?? ""}
+                      onChange={(e) => setRollbackFromVersion(Number(e.target.value))}
+                    >
+                      {publishedSorted.map((v) => (
+                        <option key={v.id} value={v.version}>
+                          v{v.version}
+                          {v.publishedAt ? ` · ${v.publishedAt.slice(0, 10)}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="text-xs font-medium text-muted">
+                    Operator reason (min 3 characters)
+                    <textarea
+                      className="mt-1 min-h-[72px] w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                      value={rollbackReason}
+                      onChange={(e) => setRollbackReason(e.target.value)}
+                      placeholder="Explain the misconfiguration and why you are restoring this snapshot."
+                    />
+                  </label>
+                  <Button
+                    variant="secondary"
+                    disabled={rollbackMut.isPending || rollbackReason.trim().length < 3 || rollbackFromVersion == null}
+                    onClick={() => {
+                      if (rollbackReason.trim().length < 3) {
+                        toast.error("Add a rollback reason (min 3 characters).");
+                        return;
+                      }
+                      setRollbackSafetyOpen(true);
+                    }}
+                  >
+                    Create rollback draft
+                  </Button>
+                </div>
+              )}
             </PlatformSectionCard>
 
             <PlatformSectionCard
@@ -315,6 +413,27 @@ export default function PlatformPlanDetailPage() {
                 ? ` · was v${preview.previousPublished.version} published`
                 : " · first publish"}
             </p>
+            <label className="block text-xs font-medium text-muted">
+              Publish reason (required, min 3 characters — stored on the audit record)
+              <textarea
+                className="mt-1 min-h-[64px] w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                value={publishReason}
+                onChange={(e) => setPublishReason(e.target.value)}
+                placeholder="e.g. Verified matrix against pricing committee sign-off."
+              />
+            </label>
+            {twoStepRequired ? (
+              <label className="block text-xs font-medium text-muted">
+                Type <span className="font-mono font-semibold text-foreground">PUBLISH</span> to enable confirmation
+                <input
+                  className="mt-1 h-10 w-full rounded-lg border border-border bg-card px-3 font-mono text-sm"
+                  value={publishPhrase}
+                  onChange={(e) => setPublishPhrase(e.target.value)}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+              </label>
+            ) : null}
             <div className="max-h-[50vh] overflow-auto rounded-lg border border-border">
               <table className="w-full text-left text-sm">
                 <thead className="sticky top-0 bg-muted-bg/95 text-xs uppercase text-muted">
@@ -347,7 +466,14 @@ export default function PlatformPlanDetailPage() {
               <Button variant="secondary" onClick={() => setPublishOpen(false)}>
                 Cancel
               </Button>
-              <Button disabled={confirmPublish.isPending} onClick={() => confirmPublish.mutate()}>
+              <Button
+                disabled={
+                  confirmPublish.isPending ||
+                  publishReason.trim().length < 3 ||
+                  (twoStepRequired && publishPhrase.trim() !== "PUBLISH")
+                }
+                onClick={() => confirmPublish.mutate(publishReason.trim())}
+              >
                 Confirm publish
               </Button>
             </div>
@@ -356,6 +482,41 @@ export default function PlatformPlanDetailPage() {
           <p className="text-sm text-muted">Loading preview…</p>
         )}
       </Modal>
+
+      <ConfirmDialog
+        open={deleteDraftOpen}
+        onClose={() => setDeleteDraftOpen(false)}
+        onConfirm={() => {
+          deleteDraft.mutate(undefined, {
+            onSettled: () => {
+              setDeleteDraftOpen(false);
+            },
+          });
+        }}
+        title="Delete draft plan version"
+        description="This permanently removes the draft and all unsaved matrix work for this version."
+        confirmLabel="Delete draft"
+        isPending={deleteDraft.isPending}
+      />
+
+      <PlatformSafetyDialog
+        open={rollbackSafetyOpen}
+        onClose={() => setRollbackSafetyOpen(false)}
+        onConfirm={() => rollbackMut.mutate()}
+        title="Create rollback draft"
+        description="A new draft will be created from the selected published snapshot. Review the matrix and use Preview publish before applying to subscribers."
+        detail={
+          rollbackFromVersion != null
+            ? `Plan ${planKey} · source published v${rollbackFromVersion}`
+            : undefined
+        }
+        confirmLabel="Create rollback draft"
+        variant="caution"
+        isPending={rollbackMut.isPending}
+        twoStepRequired={twoStepRequired}
+        typedPhraseLabel="Type ROLLBACK to confirm"
+        typedPhraseExpected="ROLLBACK"
+      />
     </PlatformAccessGuard>
   );
 }

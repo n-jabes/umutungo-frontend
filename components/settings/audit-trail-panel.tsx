@@ -33,6 +33,15 @@ function truncateUa(ua: string, max = 96) {
   return `${ua.slice(0, max)}…`;
 }
 
+function auditReasonLine(metadata: Record<string, unknown> | null | undefined): string | null {
+  if (!metadata || typeof metadata !== "object") return null;
+  const r = metadata.reason;
+  if (typeof r === "string" && r.trim()) return r.trim();
+  const p = metadata.publishReason;
+  if (typeof p === "string" && p.trim()) return p.trim();
+  return null;
+}
+
 async function copyText(label: string, text: string | null | undefined) {
   if (!text) return;
   try {
@@ -81,6 +90,8 @@ function AuditEntryRow({ entry }: { entry: AuditLogEntry }) {
       ? `${entry.entityType} · ${truncateMiddle(entry.entityId)}`
       : entry.entityType;
 
+  const reasonText = auditReasonLine(entry.metadata as Record<string, unknown> | null | undefined);
+
   return (
     <li className="border-b border-border last:border-b-0">
       <div className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
@@ -99,6 +110,11 @@ function AuditEntryRow({ entry }: { entry: AuditLogEntry }) {
             <span className="mx-1.5 text-border">|</span>
             <span className="font-mono">{entityLine}</span>
           </p>
+          {reasonText ? (
+            <p className="text-xs text-foreground/90">
+              <span className="font-semibold text-muted">Reason</span>: {reasonText}
+            </p>
+          ) : null}
         </div>
         {expandable ? (
           <Button
@@ -186,6 +202,8 @@ export function AuditTrailPanel({
   onEntityTypeFilter,
   onRoleFilter,
   onPageChange,
+  title = "Audit trail",
+  intro = "Immutable log of actions across your organization. Request context (IP, correlation ID, browser hint) is captured when supported by the API for investigations and support.",
 }: {
   items: AuditLogEntry[];
   total: number;
@@ -199,17 +217,16 @@ export function AuditTrailPanel({
   onEntityTypeFilter: (v: string) => void;
   onRoleFilter: (v: "" | "owner" | "admin" | "agent") => void;
   onPageChange: (p: number) => void;
+  title?: string;
+  intro?: string;
 }) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">Audit trail</h2>
-        <p className="mt-1 max-w-2xl text-sm text-muted">
-          Immutable log of actions across your organization. Request context (IP, correlation ID, browser
-          hint) is captured when supported by the API for investigations and support.
-        </p>
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
+        <p className="mt-1 max-w-2xl text-sm text-muted">{intro}</p>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">

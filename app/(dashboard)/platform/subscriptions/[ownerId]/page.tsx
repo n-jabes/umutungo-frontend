@@ -6,6 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
+import { PlatformSafetyDialog } from "@/components/platform/platform-safety-dialog";
+import { usePlatformTwoStepPreference } from "@/components/platform/use-platform-two-step-preference";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
@@ -32,6 +34,16 @@ export default function PlatformSubscriptionDetailPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
   const qc = useQueryClient();
+  const { twoStepRequired } = usePlatformTwoStepPreference();
+
+  const [safety, setSafety] = useState<{
+    id: "grant" | "schedule" | "extend" | "downgrade" | "cancel" | "expire";
+    title: string;
+    description: string;
+    detail?: string;
+    variant: "caution" | "danger";
+    phrase: string;
+  } | null>(null);
 
   const detail = useQuery({
     queryKey: queryKeys.platformSubscriptionDetail(ownerId),
@@ -171,6 +183,30 @@ export default function PlatformSubscriptionDetailPage() {
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
+  function runConfirmedAction() {
+    if (!safety) return;
+    const id = safety.id;
+    setSafety(null);
+    if (id === "grant") grantMut.mutate();
+    else if (id === "schedule") schedMut.mutate();
+    else if (id === "extend") extMut.mutate();
+    else if (id === "downgrade") downMut.mutate();
+    else if (id === "cancel") cancelMut.mutate();
+    else if (id === "expire") expireMut.mutate();
+  }
+
+  function requireReasonThenOpen(
+    reason: string,
+    minLen: number,
+    cfg: NonNullable<typeof safety>,
+  ) {
+    if (reason.trim().length < minLen) {
+      toast.error("Operator reason must be at least 3 characters.");
+      return;
+    }
+    setSafety(cfg);
+  }
+
   if (!ownerId) {
     return (
       <PlatformAccessGuard>
@@ -189,9 +225,14 @@ export default function PlatformSubscriptionDetailPage() {
         title={detail.data ? detail.data.owner.name : "Subscription"}
         description="Operator console for one owner account. All actions below require a written reason and append to the immutable subscription event log."
         actions={
-          <Link href="/platform/subscriptions" className={buttonClassName({ variant: "secondary" })}>
-            Back to list
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/platform/subscriptions" className={buttonClassName({ variant: "secondary" })}>
+              Back to list
+            </Link>
+            <Link href="/platform/audit" className={buttonClassName({ variant: "secondary" })}>
+              Audit log
+            </Link>
+          </div>
         }
       >
         {!isAdmin ? (
@@ -298,7 +339,16 @@ export default function PlatformSubscriptionDetailPage() {
               <Button
                 className="mt-3"
                 disabled={grantMut.isPending || grantReason.trim().length < 3}
-                onClick={() => grantMut.mutate()}
+                onClick={() =>
+                  requireReasonThenOpen(grantReason, 3, {
+                    id: "grant",
+                    title: "Grant or switch plan",
+                    description: "Applies the latest published matrix for the selected plan key to this owner.",
+                    detail: detail.data?.owner.name,
+                    variant: "caution",
+                    phrase: "GRANT",
+                  })
+                }
               >
                 Grant / switch plan
               </Button>
@@ -353,7 +403,15 @@ export default function PlatformSubscriptionDetailPage() {
                   schedReason.trim().length < 3 ||
                   (!schedClearTrial && !schedTrial.trim() && !schedStart.trim() && !schedEnd.trim())
                 }
-                onClick={() => schedMut.mutate()}
+                onClick={() =>
+                  requireReasonThenOpen(schedReason, 3, {
+                    id: "schedule",
+                    title: "Apply billing schedule",
+                    description: "Updates trial and/or billing window fields you supplied.",
+                    variant: "caution",
+                    phrase: "SCHEDULE",
+                  })
+                }
               >
                 Apply schedule
               </Button>
@@ -400,7 +458,15 @@ export default function PlatformSubscriptionDetailPage() {
                 className="mt-3"
                 variant="secondary"
                 disabled={extMut.isPending || extReason.trim().length < 3 || !sub}
-                onClick={() => extMut.mutate()}
+                onClick={() =>
+                  requireReasonThenOpen(extReason, 3, {
+                    id: "extend",
+                    title: "Extend billing period",
+                    description: "Shifts the current billing end according to your inputs.",
+                    variant: "caution",
+                    phrase: "EXTEND",
+                  })
+                }
               >
                 Extend
               </Button>
@@ -428,7 +494,15 @@ export default function PlatformSubscriptionDetailPage() {
                 className="mt-3"
                 variant="secondary"
                 disabled={downMut.isPending || downReason.trim().length < 3 || !sub}
-                onClick={() => downMut.mutate()}
+                onClick={() =>
+                  requireReasonThenOpen(downReason, 3, {
+                    id: "downgrade",
+                    title: "Change published plan snapshot",
+                    description: "Moves this subscription to the latest published version of the selected plan key.",
+                    variant: "caution",
+                    phrase: "DOWNGRADE",
+                  })
+                }
               >
                 Downgrade / change tier
               </Button>
@@ -452,7 +526,18 @@ export default function PlatformSubscriptionDetailPage() {
                 className="mt-3"
                 variant="danger"
                 disabled={cancelMut.isPending || cancelReason.trim().length < 3 || !sub}
-                onClick={() => cancelMut.mutate()}
+                onClick={() =>
+                  requireReasonThenOpen(cancelReason, 3, {
+                    id: "cancel",
+                    title: "Cancel subscription",
+                    description:
+                      cancelMode === "immediate"
+                        ? "Immediate cancellation ends access now."
+                        : "Cancellation will apply at the end of the current billing period.",
+                    variant: "danger",
+                    phrase: "CANCEL",
+                  })
+                }
               >
                 Cancel subscription
               </Button>
@@ -464,7 +549,15 @@ export default function PlatformSubscriptionDetailPage() {
                 className="mt-3"
                 variant="danger"
                 disabled={expireMut.isPending || expireReason.trim().length < 3 || !sub}
-                onClick={() => expireMut.mutate()}
+                onClick={() =>
+                  requireReasonThenOpen(expireReason, 3, {
+                    id: "expire",
+                    title: "Expire subscription now",
+                    description: "Marks the subscription expired and clears trial. Use only when you are certain.",
+                    variant: "danger",
+                    phrase: "EXPIRE",
+                  })
+                }
               >
                 Expire immediately
               </Button>
@@ -500,6 +593,28 @@ export default function PlatformSubscriptionDetailPage() {
           </>
         )}
       </PlatformPageShell>
+
+      <PlatformSafetyDialog
+        open={safety != null}
+        onClose={() => setSafety(null)}
+        onConfirm={runConfirmedAction}
+        title={safety?.title ?? ""}
+        description={safety?.description ?? ""}
+        detail={safety?.detail}
+        confirmLabel="Run action"
+        variant={safety?.variant ?? "caution"}
+        isPending={
+          grantMut.isPending ||
+          schedMut.isPending ||
+          extMut.isPending ||
+          downMut.isPending ||
+          cancelMut.isPending ||
+          expireMut.isPending
+        }
+        twoStepRequired={twoStepRequired}
+        typedPhraseLabel={`Type ${safety?.phrase ?? ""} to confirm`}
+        typedPhraseExpected={safety?.phrase ?? ""}
+      />
     </PlatformAccessGuard>
   );
 }

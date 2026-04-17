@@ -138,6 +138,9 @@ export default function PlatformOverviewPage() {
               >
                 Subscriptions
               </Link>
+              <Link href="/platform/audit" className={buttonClassName({ variant: "secondary", className: "flex-1 sm:flex-none" })}>
+                Audit
+              </Link>
             </div>
           </div>
         }

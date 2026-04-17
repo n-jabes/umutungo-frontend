@@ -247,10 +247,18 @@ export const api = {
     return unwrap(data);
   },
 
-  async publishPlatformPlanVersion(versionId: string) {
+  async publishPlatformPlanVersion(versionId: string, body: { reason: string }) {
     const { data } = await rawApi.post<Ok<{ published: PlanVersionDetail; preview: PublishPreview }>>(
       `/platform/plan-versions/${versionId}/publish`,
-      {},
+      body,
+    );
+    return unwrap(data);
+  },
+
+  async rollbackPlatformPlan(planKey: string, body: { cloneFromVersion: number; reason: string }) {
+    const { data } = await rawApi.post<Ok<PlanVersionDetail>>(
+      `/platform/plans/${encodeURIComponent(planKey)}/rollback`,
+      body,
     );
     return unwrap(data);
   },

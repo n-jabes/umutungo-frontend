@@ -42,6 +42,13 @@ const ITEMS: Array<{
     href: "/platform/accounts",
     keywords: ["owners", "users"],
   },
+  {
+    id: "audit",
+    label: "Audit & compliance",
+    hint: "Immutable log",
+    href: "/platform/audit",
+    keywords: ["compliance", "ip", "log"],
+  },
 ];
 
 function normalize(s: string) {

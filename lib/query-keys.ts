@@ -54,6 +54,22 @@ export const queryKeys = {
   platformPlanCompare: (keysCsv: string) => ["platform", "plans", "compare", keysCsv] as const,
   platformFeatures: ["platform", "features"] as const,
   platformDashboard: ["platform", "dashboard", "summary"] as const,
+  platformAdminAudit: (params: {
+    page: number;
+    pageSize: number;
+    action: string;
+    entityType: string;
+    actorRole: "" | "owner" | "admin" | "agent";
+  }) =>
+    [
+      "platform",
+      "audit",
+      params.page,
+      params.pageSize,
+      params.action,
+      params.entityType,
+      params.actorRole,
+    ] as const,
   platformSubscriptions: (params: {
     page: number;
     pageSize: number;

@@ -16,6 +16,7 @@ import {
   Users,
   Wallet,
   Settings,
+  ScrollText,
   ShieldCheck,
   X,
 } from "lucide-react";
@@ -51,6 +52,7 @@ const navByWorkspace = {
     { href: "/platform/plans/compare", label: "Compare",       icon: GitCompareArrows },
     { href: "/platform/subscriptions", label: "Subscriptions", icon: Wallet },
     { href: "/platform/accounts",      label: "Accounts",      icon: Users },
+    { href: "/platform/audit",         label: "Audit",         icon: ScrollText },
   ],
 } as const;
 
