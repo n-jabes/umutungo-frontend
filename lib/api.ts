@@ -29,6 +29,9 @@ import type {
   PublishPreview,
   PlanCompareResponse,
   CatalogFeature,
+  SubscriptionAdminListResponse,
+  SubscriptionOwnerAccountsResponse,
+  SubscriptionAdminDetail,
   AgentCreateResult,
   PaginatedAuditLogs,
   PaymentProof,
@@ -240,6 +243,119 @@ export const api = {
     const { data } = await rawApi.get<Ok<PlanCompareResponse>>("/platform/plans/compare", {
       params: { keys: keys.join(",") },
     });
+    return unwrap(data);
+  },
+
+  async listPlatformSubscriptions(params: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: "active" | "trialing" | "canceled" | "expired";
+    planKey?: string;
+  }) {
+    const { data } = await rawApi.get<Ok<SubscriptionAdminListResponse>>("/platform/subscriptions", {
+      params: {
+        page: params.page ?? 1,
+        pageSize: params.pageSize ?? 25,
+        search: params.search ?? "",
+        ...(params.status ? { status: params.status } : {}),
+        ...(params.planKey ? { planKey: params.planKey } : {}),
+      },
+    });
+    return unwrap(data);
+  },
+
+  async listPlatformSubscriptionAccounts(params: { page?: number; pageSize?: number; q?: string }) {
+    const { data } = await rawApi.get<Ok<SubscriptionOwnerAccountsResponse>>("/platform/subscription-accounts", {
+      params: {
+        page: params.page ?? 1,
+        pageSize: params.pageSize ?? 25,
+        q: params.q ?? "",
+      },
+    });
+    return unwrap(data);
+  },
+
+  async getPlatformSubscriptionDetail(ownerId: string) {
+    const { data } = await rawApi.get<Ok<SubscriptionAdminDetail>>(
+      `/platform/subscriptions/${encodeURIComponent(ownerId)}`,
+    );
+    return unwrap(data);
+  },
+
+  async grantPlatformSubscription(
+    ownerId: string,
+    body: {
+      reason: string;
+      planKey?: string;
+      planVersionId?: string;
+      status?: "active" | "trialing";
+      trialEndsAt?: string | null;
+      currentPeriodStart?: string | null;
+      currentPeriodEnd?: string | null;
+    },
+  ) {
+    const { data } = await rawApi.post<Ok<SubscriptionAdminDetail>>(
+      `/platform/subscriptions/${encodeURIComponent(ownerId)}/grant`,
+      body,
+    );
+    return unwrap(data);
+  },
+
+  async setPlatformSubscriptionSchedule(
+    ownerId: string,
+    body: {
+      reason: string;
+      trialEndsAt?: string | null;
+      currentPeriodStart?: string | null;
+      currentPeriodEnd?: string | null;
+    },
+  ) {
+    const { data } = await rawApi.post<Ok<SubscriptionAdminDetail>>(
+      `/platform/subscriptions/${encodeURIComponent(ownerId)}/set-schedule`,
+      body,
+    );
+    return unwrap(data);
+  },
+
+  async extendPlatformSubscription(
+    ownerId: string,
+    body: { reason: string; mode: "days" | "until"; days?: number; currentPeriodEnd?: string },
+  ) {
+    const { data } = await rawApi.post<Ok<SubscriptionAdminDetail>>(
+      `/platform/subscriptions/${encodeURIComponent(ownerId)}/extend`,
+      body,
+    );
+    return unwrap(data);
+  },
+
+  async downgradePlatformSubscription(
+    ownerId: string,
+    body: { reason: string; planKey?: string; planVersionId?: string },
+  ) {
+    const { data } = await rawApi.post<Ok<SubscriptionAdminDetail>>(
+      `/platform/subscriptions/${encodeURIComponent(ownerId)}/downgrade`,
+      body,
+    );
+    return unwrap(data);
+  },
+
+  async cancelPlatformSubscription(
+    ownerId: string,
+    body: { reason: string; mode: "immediate" | "end_of_period" },
+  ) {
+    const { data } = await rawApi.post<Ok<SubscriptionAdminDetail>>(
+      `/platform/subscriptions/${encodeURIComponent(ownerId)}/cancel`,
+      body,
+    );
+    return unwrap(data);
+  },
+
+  async expirePlatformSubscriptionNow(ownerId: string, body: { reason: string }) {
+    const { data } = await rawApi.post<Ok<SubscriptionAdminDetail>>(
+      `/platform/subscriptions/${encodeURIComponent(ownerId)}/expire-now`,
+      body,
+    );
     return unwrap(data);
   },
 

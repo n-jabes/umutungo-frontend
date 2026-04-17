@@ -51,4 +51,23 @@ export const queryKeys = {
   platformPlanVersion: (versionId: string) => ["platform", "plan-versions", versionId] as const,
   platformPlanCompare: (keysCsv: string) => ["platform", "plans", "compare", keysCsv] as const,
   platformFeatures: ["platform", "features"] as const,
+  platformSubscriptions: (params: {
+    page: number;
+    pageSize: number;
+    search: string;
+    status?: string;
+    planKey?: string;
+  }) =>
+    [
+      "platform",
+      "subscriptions",
+      params.page,
+      params.pageSize,
+      params.search,
+      params.status ?? "",
+      params.planKey ?? "",
+    ] as const,
+  platformSubscriptionAccounts: (params: { page: number; pageSize: number; q: string }) =>
+    ["platform", "subscription-accounts", params.page, params.pageSize, params.q] as const,
+  platformSubscriptionDetail: (ownerId: string) => ["platform", "subscriptions", ownerId] as const,
 };

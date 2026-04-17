@@ -33,12 +33,12 @@ export default function PlatformOverviewPage() {
       >
         <PlatformSectionCard
           title="Module status"
-          description="Plan catalog UI (Module 2) is live for admins. Subscriptions and accounts follow in later modules."
+          description="Plan catalog (Module 2) and manual subscriptions (Module 3) are live for admins. Accounts and deeper compliance views follow in later modules."
         >
           <PlatformPlaceholderList
             items={[
               { label: "Plans", value: "Catalog & publish" },
-              { label: "Subscriptions", value: "Scaffolded" },
+              { label: "Subscriptions", value: "Manual lifecycle" },
               { label: "Accounts", value: "Scaffolded" },
               { label: "Audit", value: "Coming in module 7" },
             ]}

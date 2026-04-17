@@ -99,6 +99,83 @@ export type PlanCompareResponse = {
   }>;
 };
 
+export type SubscriptionAdminRow = {
+  id: string;
+  ownerId: string;
+  owner: { id: string; name: string; email: string | null; phone: string | null };
+  status: "active" | "trialing" | "canceled" | "expired";
+  planKey: string;
+  planName: string;
+  planVersion: number;
+  planVersionId: string;
+  trialEndsAt: string | null;
+  currentPeriodStart: string | null;
+  currentPeriodEnd: string | null;
+  canceledAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type SubscriptionAdminListResponse = {
+  items: SubscriptionAdminRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type SubscriptionOwnerAccountRow = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  createdAt: string;
+  hasSubscription: boolean;
+  subscriptionStatus: string | null;
+};
+
+export type SubscriptionOwnerAccountsResponse = {
+  items: SubscriptionOwnerAccountRow[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type SubscriptionTimelineEvent = {
+  id: string;
+  eventType: string;
+  payload: Record<string, unknown> | null;
+  actorUserId: string | null;
+  actor: { id: string; name: string; email: string | null; role: string } | null;
+  createdAt: string;
+};
+
+export type SubscriptionAdminDetail = {
+  owner: {
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    role: string;
+    createdAt: string;
+  };
+  subscription: {
+    id: string;
+    ownerId: string;
+    status: "active" | "trialing" | "canceled" | "expired";
+    planVersionId: string;
+    planKey: string;
+    planName: string;
+    planVersion: number;
+    trialEndsAt: string | null;
+    currentPeriodStart: string | null;
+    currentPeriodEnd: string | null;
+    canceledAt: string | null;
+    createdAt: string;
+    updatedAt: string;
+  } | null;
+  timeline: SubscriptionTimelineEvent[];
+};
+
 export type EntitlementsPayload = {
   ownerId: string;
   resolvedAt: string;
