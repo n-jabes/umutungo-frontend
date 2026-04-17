@@ -41,6 +41,7 @@ import type {
   UnpaidAgingResponse,
   ManagerReportingQualityPage,
   RiskDrillDownPage,
+  ApiErrorPayload,
 } from "./types";
 
 export function getAccessToken(): string | null {
@@ -101,15 +102,29 @@ rawApi.interceptors.request.use((config) => {
 });
 
 type Ok<T> = { success: true; data: T };
-type Err = { error: true; message: string };
+type Err = ApiErrorPayload;
+
+export class ApiRequestError extends Error {
+  code?: string;
+  details?: unknown;
+  constructor(message: string, opts?: { code?: string; details?: unknown }) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.code = opts?.code;
+    this.details = opts?.details;
+  }
+}
 
 function unwrap<T>(body: Ok<T> | Err): T {
-  if ("error" in body && body.error) throw new Error(body.message);
+  if ("error" in body && body.error) {
+    throw new ApiRequestError(body.message, { code: body.code, details: body.details });
+  }
   if ("success" in body && body.success) return body.data;
   throw new Error("Unexpected API response");
 }
 
 export function getErrorMessage(err: unknown): string {
+  if (err instanceof ApiRequestError) return err.message;
   if (isAxiosError<Err>(err)) {
     const msg = err.response?.data?.message;
     if (typeof msg === "string" && msg) return msg;

@@ -3,6 +3,8 @@ const onboardingRoot = ["auth", "me", "onboarding"] as const;
 
 export const queryKeys = {
   me: ["me"] as const,
+  /** `GET /me/entitlements` — plan, features, usage (owner/agent). */
+  entitlements: ["me", "entitlements"] as const,
   onboardingRoot,
   onboarding: (month: string) => [...onboardingRoot, month] as const,
   agents: ["users", "agents"] as const,

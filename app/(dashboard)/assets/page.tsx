@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
 import { currentMonth, formatCompactMoney, formatMoney } from "@/lib/format";
+import { cannotCreateAssetDueToUnits } from "@/lib/plan-usage";
 import { queryKeys } from "@/lib/query-keys";
 import type { Asset } from "@/lib/types";
 
@@ -33,6 +34,13 @@ export default function AssetsPage() {
     queryKey: queryKeys.assets,
     queryFn: () => api.listAssets(),
   });
+  const entitlements = useQuery({
+    queryKey: queryKeys.entitlements,
+    queryFn: () => api.getMeEntitlements(),
+    staleTime: 60_000,
+  });
+  const assetCapReached =
+    entitlements.data != null && cannotCreateAssetDueToUnits(entitlements.data);
   const { data: perf } = useQuery({
     queryKey: queryKeys.assetPerformance(month),
     queryFn: () => api.assetPerformance(month),
@@ -67,6 +75,7 @@ export default function AssetsPage() {
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: ["payments"] });
       await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
+      await qc.invalidateQueries({ queryKey: queryKeys.entitlements });
       toast.success("Asset deleted");
       setDeleteAsset(null);
     },
@@ -106,14 +115,27 @@ export default function AssetsPage() {
           investment context.
         </p>
         </div>
-        <button
-          type="button"
-          className="inline-flex items-center gap-2 rounded-lg bg-main-blue px-4 py-2 text-sm font-medium text-white"
-          onClick={() => setCreateOpen(true)}
-        >
-          <Plus className="h-4 w-4" />
-          New asset
-        </button>
+        <div className="flex flex-col items-end gap-1">
+          <button
+            type="button"
+            disabled={assetCapReached}
+            title={
+              assetCapReached
+                ? "Unit limit reached for your plan (each new asset adds one unit). Open Settings → Plan & usage."
+                : undefined
+            }
+            className="inline-flex items-center gap-2 rounded-lg bg-main-blue px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="h-4 w-4" />
+            New asset
+          </button>
+          {assetCapReached ? (
+            <p className="max-w-xs text-right text-xs text-muted">
+              Unit limit reached. Remove a unit or review limits under Settings → Plan & usage.
+            </p>
+          ) : null}
+        </div>
       </div>
       <Card className="p-4">
         <div className="grid gap-3 sm:grid-cols-3">

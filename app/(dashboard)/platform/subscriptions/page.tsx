@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClassName } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -150,9 +150,12 @@ export default function PlatformSubscriptionsPage() {
                               </td>
                               <td className="px-3 py-2 text-muted">{row.currentPeriodEnd ?? "—"}</td>
                               <td className="px-3 py-2 text-right">
-                                <Button variant="ghost" size="sm" asChild>
-                                  <Link href={`/platform/subscriptions/${encodeURIComponent(row.ownerId)}`}>Manage</Link>
-                                </Button>
+                                <Link
+                                  href={`/platform/subscriptions/${encodeURIComponent(row.ownerId)}`}
+                                  className={buttonClassName({ variant: "ghost", size: "sm" })}
+                                >
+                                  Manage
+                                </Link>
                               </td>
                             </tr>
                           ))}
@@ -224,9 +227,12 @@ export default function PlatformSubscriptionsPage() {
                                 )}
                               </td>
                               <td className="px-3 py-2 text-right">
-                                <Button variant="ghost" size="sm" asChild>
-                                  <Link href={`/platform/subscriptions/${encodeURIComponent(o.id)}`}>Open</Link>
-                                </Button>
+                                <Link
+                                  href={`/platform/subscriptions/${encodeURIComponent(o.id)}`}
+                                  className={buttonClassName({ variant: "ghost", size: "sm" })}
+                                >
+                                  Open
+                                </Link>
                               </td>
                             </tr>
                           ))}

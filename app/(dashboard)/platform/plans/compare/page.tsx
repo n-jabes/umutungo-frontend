@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
-import { Button } from "@/components/ui/button";
+import { buttonClassName } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -34,9 +34,9 @@ export default function PlatformPlansComparePage() {
         title="Compare plans"
         description="Side-by-side view of the latest published version for each plan. Useful before publishing a draft or when tuning the matrix."
         actions={
-          <Button variant="secondary" asChild>
-            <Link href="/platform/plans">Back to plans</Link>
-          </Button>
+          <Link href="/platform/plans" className={buttonClassName({ variant: "secondary" })}>
+            Back to plans
+          </Link>
         }
       >
         {!isAdmin ? (

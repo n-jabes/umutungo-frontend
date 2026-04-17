@@ -38,6 +38,7 @@ import {
 import { StatCard } from "@/components/dashboard/stat-card";
 import { DashboardCursorTableFooter } from "@/components/dashboard/dashboard-table-pagination";
 import { api } from "@/lib/api";
+import { cannotCreateAssetDueToUnits } from "@/lib/plan-usage";
 import {
   currentMonth,
   formatCompactMoney,
@@ -128,6 +129,14 @@ export default function DashboardPage() {
     enabled: user?.role !== "agent",
     staleTime: 60_000,
   });
+  const entitlementsQuery = useQuery({
+    queryKey: queryKeys.entitlements,
+    queryFn: () => api.getMeEntitlements(),
+    enabled: user?.role === "owner" && workspace === "rental",
+    staleTime: 60_000,
+  });
+  const assetCapReached =
+    entitlementsQuery.data != null && cannotCreateAssetDueToUnits(entitlementsQuery.data);
 
   useLayoutEffect(() => {
     if (!user?.id) {
@@ -351,7 +360,18 @@ export default function DashboardPage() {
         <div className="flex flex-wrap gap-2">
           {user?.role !== "agent" ? (
             <>
-              <Button type="button" variant="secondary" className="gap-2" onClick={() => setAssetOpen(true)}>
+              <Button
+                type="button"
+                variant="secondary"
+                className="gap-2"
+                disabled={assetCapReached}
+                title={
+                  assetCapReached
+                    ? "Unit limit reached for your plan. Open Settings → Plan & usage."
+                    : undefined
+                }
+                onClick={() => setAssetOpen(true)}
+              >
                 <Plus className="h-4 w-4" strokeWidth={1.75} />
                 Add asset
               </Button>
@@ -472,11 +492,26 @@ export default function DashboardPage() {
               </div>
             ) : null}
             {!checklistHasAssets ? (
-              <div>
-                <Button type="button" className="gap-2" onClick={() => setAssetOpen(true)}>
+              <div className="space-y-1">
+                <Button
+                  type="button"
+                  className="gap-2"
+                  disabled={assetCapReached}
+                  title={
+                    assetCapReached
+                      ? "Unit limit reached for your plan. Open Settings → Plan & usage."
+                      : undefined
+                  }
+                  onClick={() => setAssetOpen(true)}
+                >
                   <Plus className="h-4 w-4" strokeWidth={1.75} />
                   Add first asset
                 </Button>
+                {assetCapReached ? (
+                  <p className="text-xs text-muted">
+                    Unit limit reached — remove a unit or review limits under Settings → Plan & usage.
+                  </p>
+                ) : null}
               </div>
             ) : null}
           </div>

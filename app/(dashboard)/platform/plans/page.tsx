@@ -6,7 +6,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClassName } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -56,9 +56,9 @@ export default function PlatformPlansListPage() {
         description="Versioned plan catalog. Published snapshots are immutable; edits happen on drafts, then publish as a new effective version."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" asChild>
-              <Link href="/platform/plans/compare">Compare Starter · Growth · Pro</Link>
-            </Button>
+            <Link href="/platform/plans/compare" className={buttonClassName({ variant: "secondary" })}>
+              Compare Starter · Growth · Pro
+            </Link>
           </div>
         }
       >
@@ -105,9 +105,12 @@ export default function PlatformPlansListPage() {
                         {p.draft ? <span>v{p.draft.version} (draft)</span> : <span>None</span>}
                       </td>
                       <td className="px-3 py-3 text-right">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link href={`/platform/plans/${encodeURIComponent(p.key)}`}>Open</Link>
-                        </Button>
+                        <Link
+                          href={`/platform/plans/${encodeURIComponent(p.key)}`}
+                          className={buttonClassName({ variant: "ghost", size: "sm" })}
+                        >
+                          Open
+                        </Link>
                       </td>
                     </tr>
                   ))}

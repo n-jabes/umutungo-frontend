@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClassName } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
@@ -73,7 +73,8 @@ export default function PlatformPlanDetailPage() {
   useEffect(() => {
     if (!versionDetail.data?.matrix) return;
     setMatrixDraft(matrixToDraft(versionDetail.data.matrix));
-  }, [versionDetail.data?.id]);
+    // Re-seed matrix draft only when switching version (id), not on every matrix refetch while editing.
+  }, [versionDetail.data?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- omit matrix to avoid wiping edits
 
   const selectedBrief = plan.data?.versions.find((v) => v.id === selectedVersionId);
   const isDraftSelected = selectedBrief?.status === "draft";
@@ -150,7 +151,9 @@ export default function PlatformPlanDetailPage() {
   if (!planKey) {
     return (
       <PlatformAccessGuard>
-        <PlatformPageShell title="Plan" description="Missing plan key." />
+        <PlatformPageShell title="Plan" description="Missing plan key.">
+          <p className="text-sm text-muted">Check the URL or return to the plan list.</p>
+        </PlatformPageShell>
       </PlatformAccessGuard>
     );
   }
@@ -162,12 +165,12 @@ export default function PlatformPlanDetailPage() {
         description="Edit metadata and the feature matrix on a draft. Publishing freezes this snapshot; subscribers pick it up as the latest published version for this plan key."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" asChild>
-              <Link href="/platform/plans">All plans</Link>
-            </Button>
-            <Button variant="secondary" asChild>
-              <Link href="/platform/plans/compare">Compare plans</Link>
-            </Button>
+            <Link href="/platform/plans" className={buttonClassName({ variant: "secondary" })}>
+              All plans
+            </Link>
+            <Link href="/platform/plans/compare" className={buttonClassName({ variant: "secondary" })}>
+              Compare plans
+            </Link>
           </div>
         }
       >

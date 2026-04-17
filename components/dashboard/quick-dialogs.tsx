@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { api, getErrorMessage } from "@/lib/api";
+import { cannotCreateAssetDueToUnits } from "@/lib/plan-usage";
 import { queryKeys } from "@/lib/query-keys";
 import {
   currentMonth,
@@ -40,6 +41,14 @@ export function AddAssetModal({
   onClose: () => void;
 }) {
   const qc = useQueryClient();
+  const entitlements = useQuery({
+    queryKey: queryKeys.entitlements,
+    queryFn: () => api.getMeEntitlements(),
+    enabled: open,
+    staleTime: 60_000,
+  });
+  const unitCapReached =
+    entitlements.data != null && cannotCreateAssetDueToUnits(entitlements.data);
   const [type, setType] = useState<"property" | "land">("property");
   const [name, setName] = useState("");
   const [location, setLocation] = useState("");
@@ -74,6 +83,7 @@ export function AddAssetModal({
         qc.invalidateQueries({ queryKey: ["analytics"] }),
         qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot }),
         qc.invalidateQueries({ queryKey: ["units"] }),
+        qc.invalidateQueries({ queryKey: queryKeys.entitlements }),
       ]);
     },
     onError: (e: unknown) => {
@@ -169,11 +179,17 @@ export function AddAssetModal({
           />
         </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {unitCapReached ? (
+          <p className="text-sm text-muted">
+            Unit limit reached for your plan (each new asset adds one unit). Remove a unit or open Settings → Plan &
+            usage to review your limits before creating another asset.
+          </p>
+        ) : null}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
           </Button>
-          <Button type="submit" disabled={mutation.isPending}>
+          <Button type="submit" disabled={mutation.isPending || unitCapReached}>
             {mutation.isPending ? "Saving…" : "Create asset"}
           </Button>
         </div>

@@ -1,12 +1,13 @@
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { filterMoneyInput } from "@/lib/decimal-input";
 import { api, getErrorMessage } from "@/lib/api";
+import { entitlementsToQuotaBars } from "@/lib/plan-usage";
 import { queryKeys } from "@/lib/query-keys";
 import type { Unit } from "@/lib/types";
 
@@ -30,6 +31,16 @@ export function AddUnitModal({
   preset: Preset;
 }) {
   const qc = useQueryClient();
+  const entitlements = useQuery({
+    queryKey: queryKeys.entitlements,
+    queryFn: () => api.getMeEntitlements(),
+    enabled: open,
+    staleTime: 60_000,
+  });
+  const unitsQuota = entitlements.data ? entitlementsToQuotaBars(entitlements.data).units : null;
+  const unitGrowthLikelyBlocked = !!(unitsQuota?.atOrOverLimit && !unitsQuota.overLimit);
+  const unitOverPlan = !!unitsQuota?.overLimit;
+
   const [name, setName] = useState("");
   const [type, setType] = useState<NonNullable<Unit["type"]>>("apartment");
   const [rentAmount, setRentAmount] = useState("");
@@ -72,6 +83,7 @@ export function AddUnitModal({
         qc.invalidateQueries({ queryKey: queryKeys.occupancy }),
         qc.invalidateQueries({ queryKey: ["analytics", "rent-status", "asset", assetId] }),
         qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot }),
+        qc.invalidateQueries({ queryKey: queryKeys.entitlements }),
       ]);
     },
     onError: (e: unknown) => {
@@ -149,6 +161,17 @@ export function AddUnitModal({
           </select>
         </div>
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {unitOverPlan ? (
+          <p className="text-sm text-red-700 dark:text-red-300">
+            You are over your plan&apos;s unit limit. Remove units elsewhere first, then try again — or upgrade your
+            plan from Settings → Plan & usage.
+          </p>
+        ) : unitGrowthLikelyBlocked ? (
+          <p className="text-sm text-amber-800 dark:text-amber-200/90">
+            You are at your plan&apos;s unit cap. Adding a unit may still succeed if it replaces a placeholder whole unit
+            without increasing your total. If the save is blocked, free a unit or upgrade under Settings → Plan & usage.
+          </p>
+        ) : null}
         <div className="flex justify-end gap-2 pt-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancel

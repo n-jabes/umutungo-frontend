@@ -25,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { type Workspace, useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
+import { PlanUsageBanner } from "@/components/plan/plan-usage-banner";
 
 /* ─────────────────────────────────────────────────────────────────
    Nav definitions — order here is the order they render
@@ -193,7 +194,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const isAgent = user?.role === "agent";
   const canUsePlatform = user?.role === "owner" || user?.role === "admin";
   const navItems = isAgent
-    ? navByWorkspace.rental.filter((item) => ["/dashboard", "/leases", "/payments"].includes(item.href))
+    ? navByWorkspace.rental.filter((item) =>
+        ["/dashboard", "/leases", "/payments", "/settings"].includes(item.href),
+      )
     : navByWorkspace[workspace];
 
   function handleWorkspaceSwitch(next: Workspace) {
@@ -243,6 +246,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </header>
 
           <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+            {workspace === "rental" && (user?.role === "owner" || user?.role === "agent") ? <PlanUsageBanner /> : null}
             {children}
           </main>
         </div>

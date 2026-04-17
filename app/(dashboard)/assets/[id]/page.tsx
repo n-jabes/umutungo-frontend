@@ -82,6 +82,7 @@ export default function AssetDetailPage() {
         qc.invalidateQueries({ queryKey: queryKeys.assetRentStatus(id, asOf) }),
         qc.invalidateQueries({ queryKey: ["payments"] }),
         qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot }),
+        qc.invalidateQueries({ queryKey: queryKeys.entitlements }),
       ]);
     },
     onError: (e) => toast.error(getErrorMessage(e)),
@@ -107,6 +108,7 @@ export default function AssetDetailPage() {
       await qc.invalidateQueries({ queryKey: queryKeys.leases });
       await qc.invalidateQueries({ queryKey: ["payments"] });
       await qc.invalidateQueries({ queryKey: queryKeys.onboardingRoot });
+      await qc.invalidateQueries({ queryKey: queryKeys.entitlements });
       toast.success("Asset deleted");
       router.push("/assets");
     },

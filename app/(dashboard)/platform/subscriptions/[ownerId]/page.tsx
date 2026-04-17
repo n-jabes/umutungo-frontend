@@ -7,7 +7,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
-import { Button } from "@/components/ui/button";
+import { Button, buttonClassName } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -174,7 +174,9 @@ export default function PlatformSubscriptionDetailPage() {
   if (!ownerId) {
     return (
       <PlatformAccessGuard>
-        <PlatformPageShell title="Subscription" description="Missing owner id." />
+        <PlatformPageShell title="Subscription" description="Missing owner id.">
+          <p className="text-sm text-muted">Check the URL or open an owner from the subscriptions list.</p>
+        </PlatformPageShell>
       </PlatformAccessGuard>
     );
   }
@@ -187,9 +189,9 @@ export default function PlatformSubscriptionDetailPage() {
         title={detail.data ? detail.data.owner.name : "Subscription"}
         description="Operator console for one owner account. All actions below require a written reason and append to the immutable subscription event log."
         actions={
-          <Button variant="secondary" asChild>
-            <Link href="/platform/subscriptions">Back to list</Link>
-          </Button>
+          <Link href="/platform/subscriptions" className={buttonClassName({ variant: "secondary" })}>
+            Back to list
+          </Link>
         }
       >
         {!isAdmin ? (

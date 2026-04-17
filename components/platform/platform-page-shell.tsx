@@ -38,7 +38,7 @@ export function PlatformSectionCard({
 }: {
   title: string;
   description?: string;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <Card className="space-y-3 border-border p-4 sm:p-5">
@@ -46,7 +46,7 @@ export function PlatformSectionCard({
         <h2 className="text-sm font-semibold text-foreground">{title}</h2>
         {description ? <p className="mt-1 text-xs text-muted">{description}</p> : null}
       </div>
-      {children}
+      {children ?? null}
     </Card>
   );
 }

@@ -19,6 +19,23 @@ export type UserPublic = {
   createdAt: string;
 };
 
+/** Standard error JSON from the API when `error` is true. */
+export type ApiErrorPayload = {
+  error: true;
+  message: string;
+  code?: string;
+  details?: unknown;
+};
+
+/** Payload in `details` when `code` is `PLAN_LIMIT_EXCEEDED` (HTTP 403). */
+export type PlanLimitExceededDetails = {
+  resource: string;
+  max: number | null;
+  current: number;
+  delta: number;
+  action: string;
+};
+
 /** Resolved plan limits + optional grants (`GET /me/entitlements`, `GET /platform/entitlements/:ownerId`). */
 export type CatalogFeature = {
   id: string;
@@ -209,6 +226,11 @@ export type EntitlementsPayload = {
     expiresAt: string | null;
     createdAt: string;
   }>;
+  /** Portfolio counts; compare to numeric `features['units.max']` and `features['agents.max']`. */
+  usage: {
+    units: { current: number };
+    agents: { current: number };
+  };
 };
 
 export type AuditLogEntry = {
