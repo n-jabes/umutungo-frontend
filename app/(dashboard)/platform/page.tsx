@@ -1,0 +1,42 @@
+"use client";
+
+import Link from "next/link";
+import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
+import {
+  PlatformPageShell,
+  PlatformPlaceholderList,
+  PlatformSectionCard,
+} from "@/components/platform/platform-page-shell";
+
+export default function PlatformOverviewPage() {
+  return (
+    <PlatformAccessGuard>
+      <PlatformPageShell
+        title="Operations overview"
+        description="Manage the platform workspace modules for pricing, subscriptions, and account operations."
+        actions={
+          <Link
+            href="/platform/plans"
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-border bg-card px-4 text-sm font-medium text-foreground transition-all duration-200 hover:bg-muted-bg active:scale-[0.99]"
+          >
+            Open plans
+          </Link>
+        }
+      >
+        <PlatformSectionCard
+          title="Module status"
+          description="Module 0 scaffolding is ready. Next modules add entitlement data models and management workflows."
+        >
+          <PlatformPlaceholderList
+            items={[
+              { label: "Plans", value: "Scaffolded" },
+              { label: "Subscriptions", value: "Scaffolded" },
+              { label: "Accounts", value: "Scaffolded" },
+              { label: "Audit", value: "Coming in module 7" },
+            ]}
+          />
+        </PlatformSectionCard>
+      </PlatformPageShell>
+    </PlatformAccessGuard>
+  );
+}

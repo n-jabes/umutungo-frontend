@@ -15,6 +15,7 @@ import {
   Users,
   Wallet,
   Settings,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import { useState } from "react";
@@ -41,12 +42,19 @@ const navByWorkspace = {
     { href: "/portfolio", label: "Portfolio", icon: LineChart },
     { href: "/assets",    label: "Assets",    icon: Building2 },
   ],
+  platform: [
+    { href: "/platform",               label: "Overview",      icon: ShieldCheck },
+    { href: "/platform/plans",         label: "Plans",         icon: FileText },
+    { href: "/platform/subscriptions", label: "Subscriptions", icon: Wallet },
+    { href: "/platform/accounts",      label: "Accounts",      icon: Users },
+  ],
 } as const;
 
 /* Home page per workspace — where to land when switching */
 const workspaceHome: Record<Workspace, string> = {
   rental:    "/dashboard",
   portfolio: "/portfolio",
+  platform:  "/platform",
 };
 
 /* ─────────────────────────────────────────────────────────────────
@@ -181,12 +189,14 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [drawer, setDrawer] = useState(false);
   const isAgent = user?.role === "agent";
+  const canUsePlatform = user?.role === "owner" || user?.role === "admin";
   const navItems = isAgent
     ? navByWorkspace.rental.filter((item) => ["/dashboard", "/leases", "/payments"].includes(item.href))
     : navByWorkspace[workspace];
 
   function handleWorkspaceSwitch(next: Workspace) {
     if (isAgent) return;
+    if (next === "platform" && !canUsePlatform) return;
     setWorkspace(next);
     router.push(workspaceHome[next]);
   }
@@ -196,7 +206,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div className="mx-auto flex h-full max-w-[1600px]">
         <aside className="hidden h-screen w-64 shrink-0 border-r border-border bg-card/80 px-4 py-8 backdrop-blur-sm lg:flex lg:flex-col">
           <Logo className="px-2" size="sm" />
-          <WorkspaceSwitcher workspace={workspace} onSwitch={handleWorkspaceSwitch} isAgent={isAgent} />
+          <WorkspaceSwitcher workspace={workspace} onSwitch={handleWorkspaceSwitch} isAgent={isAgent} canUsePlatform={canUsePlatform} />
           <div className="mt-10 flex-1">
             <NavLinks variant="sidebar" workspace={workspace} itemsOverride={navItems} />
           </div>
@@ -268,6 +278,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   setDrawer(false);
                 }}
                 isAgent={isAgent}
+                canUsePlatform={canUsePlatform}
                 className="mb-5"
               />
               <NavLinks variant="mobile-drawer" workspace={workspace} itemsOverride={navItems} onNavigate={() => setDrawer(false)} />
@@ -297,6 +308,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 const workspaceMeta: Record<Workspace, { label: string; icon: React.ElementType; description: string }> = {
   rental:    { label: "Rental",    icon: Home,       description: "Tenants, leases & payments" },
   portfolio: { label: "Portfolio", icon: TrendingUp, description: "Assets & performance" },
+  platform:  { label: "Platform",  icon: ShieldCheck, description: "Plans, subscriptions & operations" },
 };
 
 function WorkspaceSwitcher({
@@ -304,13 +316,19 @@ function WorkspaceSwitcher({
   onSwitch,
   className,
   isAgent,
+  canUsePlatform,
 }: {
   workspace: Workspace;
   onSwitch: (w: Workspace) => void;
   className?: string;
   isAgent?: boolean;
+  canUsePlatform?: boolean;
 }) {
-  const options = isAgent ? (["rental"] as const) : (["rental", "portfolio"] as const);
+  const options = isAgent
+    ? (["rental"] as const)
+    : canUsePlatform
+      ? (["rental", "portfolio", "platform"] as const)
+      : (["rental", "portfolio"] as const);
 
   return (
     <div className={cn("mt-5 space-y-1", className)}>

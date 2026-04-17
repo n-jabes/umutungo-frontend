@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 
-export type Workspace = "rental" | "portfolio";
+export type Workspace = "rental" | "portfolio" | "platform";
 
 type WorkspaceContextValue = {
   workspace: Workspace;
@@ -17,7 +17,7 @@ export function WorkspaceProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const stored = localStorage.getItem(WORKSPACE_KEY);
-    if (stored === "rental" || stored === "portfolio") {
+    if (stored === "rental" || stored === "portfolio" || stored === "platform") {
       setWorkspace(stored);
     }
   }, []);

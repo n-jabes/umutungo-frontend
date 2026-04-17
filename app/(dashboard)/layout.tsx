@@ -25,6 +25,11 @@ export default function DashboardGroupLayout({
     if (user.role === "agent" && workspace !== "rental") {
       setWorkspace("rental");
       router.replace("/dashboard");
+      return;
+    }
+    if (workspace === "platform" && !["owner", "admin"].includes(user.role)) {
+      setWorkspace("rental");
+      router.replace("/dashboard");
     }
   }, [ready, user, workspace, setWorkspace, router]);
 
