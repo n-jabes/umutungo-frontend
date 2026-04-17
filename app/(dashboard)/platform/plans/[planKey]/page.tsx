@@ -212,7 +212,7 @@ export default function PlatformPlanDetailPage() {
     <PlatformAccessGuard>
       <PlatformPageShell
         title={plan.data ? plan.data.name : "Plan"}
-        description="Edit metadata and the feature matrix on a draft. Publishing freezes this snapshot; subscribers pick it up as the latest published version for this plan key."
+        description="You can edit plan name and description anytime. The feature matrix only unlocks when the version dropdown shows a draft: use New draft from latest published (or Rollback). Published versions stay read-only so tenants always see a fixed snapshot until you publish again."
         actions={
           <div className="flex flex-wrap gap-2">
             <Link href="/platform/plans" className={buttonClassName({ variant: "secondary" })}>
@@ -265,7 +265,7 @@ export default function PlatformPlanDetailPage() {
 
             <PlatformSectionCard
               title="Versions"
-              description="Select a version to inspect. Only drafts accept matrix edits."
+              description="Pick which snapshot you are looking at. Matrix cells are editable only when status is draft — if you only see published rows, create a draft first, then re-select it here."
             >
               <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
                 <label className="flex flex-col text-xs font-medium text-muted sm:min-w-[220px]">
@@ -297,6 +297,19 @@ export default function PlatformPlanDetailPage() {
                 ) : null}
               </div>
             </PlatformSectionCard>
+
+            {plan.data && !isDraftSelected ? (
+              <div className="rounded-xl border border-accent-gold/35 bg-gold-soft px-4 py-3 text-sm text-main-green shadow-sm">
+                <p className="font-semibold tracking-tight">Why the matrix looks locked</p>
+                <p className="mt-1.5 text-xs leading-relaxed opacity-90">
+                  This version is published, so values are read-only. Use{" "}
+                  <span className="font-medium text-foreground">New draft from latest published</span> (or the rollback
+                  helper below) to create a draft, then choose that draft in &quot;Active version&quot; above. Any new
+                  feature you add under Plans is included automatically the next time a draft is created—it is not
+                  retrofitted into old drafts.
+                </p>
+              </div>
+            ) : null}
 
             <PlatformSectionCard
               title="Rollback helper"
@@ -353,8 +366,8 @@ export default function PlatformPlanDetailPage() {
               title="Feature matrix"
               description={
                 isDraftSelected
-                  ? "Changes are saved to this draft only. Publish when ready."
-                  : "Published versions are read-only. Create a draft to edit."
+                  ? "Each row is one catalog feature key. Save sends only the values you see here to this draft; use Preview publish to diff against the previous published version before going live."
+                  : "Shown for reference on published snapshots. Switch to a draft to change values."
               }
             >
               {versionDetail.isLoading ? (
