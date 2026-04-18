@@ -21,6 +21,8 @@ export type UserPublic = {
   termsAcceptedAt?: string | null;
   /** Legal bundle version string; see `/terms` and Backend `config/legal.js`. */
   termsVersion?: string | null;
+  /** ISO timestamp when email was verified (Resend). Null if phone-only, pending, or verification disabled on server. */
+  emailVerifiedAt?: string | null;
 };
 
 /** Standard error JSON from the API when `error` is true. */

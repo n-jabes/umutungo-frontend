@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { type Workspace, useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
+import { EmailVerificationBanner } from "@/components/auth/email-verification-banner";
 import { PlanUsageBanner } from "@/components/plan/plan-usage-banner";
 import { PlatformCommandPalette } from "@/components/platform/platform-command-palette";
 
@@ -294,6 +295,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           </header>
 
           <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+            <EmailVerificationBanner />
             {workspace === "rental" && (user?.role === "owner" || user?.role === "agent") ? <PlanUsageBanner /> : null}
             {children}
           </main>

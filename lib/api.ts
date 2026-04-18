@@ -510,6 +510,19 @@ export const api = {
     return unwrap(data);
   },
 
+  async verifyEmail(body: { token: string }) {
+    const { data } = await rawApi.post<Ok<{ user: UserPublic; accessToken: string; refreshToken: string }>>(
+      "/auth/email/verify",
+      body,
+    );
+    return unwrap(data);
+  },
+
+  async resendEmailVerification() {
+    const { data } = await rawApi.post<Ok<{ sent: boolean }>>("/auth/email/resend-verification");
+    return unwrap(data);
+  },
+
   async listAssets() {
     const { data } = await rawApi.get<Ok<Asset[]>>("/assets");
     return unwrap(data);

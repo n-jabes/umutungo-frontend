@@ -18,6 +18,7 @@ type AuthState = {
 
 type AuthContextValue = AuthState & {
   login: (emailOrPhone: { email?: string; phone?: string; password: string }) => Promise<void>;
+  resendEmailVerification: () => Promise<void>;
   register: (p: {
     name: string;
     password: string;
@@ -69,6 +70,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [],
   );
 
+  const resendEmailVerification = useCallback(async () => {
+    await api.resendEmailVerification();
+    await refreshUser();
+  }, [refreshUser]);
+
   const register = useCallback(
     async (body: {
       name: string;
@@ -102,12 +108,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       ready,
       login,
+      resendEmailVerification,
       register,
       setupPassword,
       logout,
       refreshUser,
     }),
-    [user, ready, login, register, setupPassword, logout, refreshUser],
+    [user, ready, login, resendEmailVerification, register, setupPassword, logout, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
