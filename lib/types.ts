@@ -261,6 +261,20 @@ export type EntitlementsPayload = {
   };
 };
 
+/** One row from `GET /public/pricing-plans` (published matrix for signup). */
+export type PublicPricingPlanRow = {
+  planKey: string;
+  name: string;
+  description: string | null;
+  planVersionId: string;
+  version: number;
+  features: Record<string, boolean | number | string | null>;
+};
+
+export type PublicPricingPlansResponse = {
+  plans: PublicPricingPlanRow[];
+};
+
 export type AuditLogEntry = {
   id: string;
   userId: string | null;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/contexts/auth-context";
+import { MarketingHome } from "@/components/marketing/marketing-home";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
@@ -11,12 +12,16 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!ready) return;
-    router.replace(user ? "/dashboard" : "/login");
+    if (user) router.replace("/dashboard");
   }, [user, ready, router]);
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-background">
-      <Loader2 className="h-8 w-8 animate-spin text-main-blue" strokeWidth={1.75} />
-    </div>
-  );
+  if (!ready || user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-main-blue" strokeWidth={1.75} />
+      </div>
+    );
+  }
+
+  return <MarketingHome />;
 }

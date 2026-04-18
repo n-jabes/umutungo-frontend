@@ -23,6 +23,7 @@ type AuthContextValue = AuthState & {
     password: string;
     email?: string;
     phone?: string;
+    planKey: string;
   }) => Promise<void>;
   setupPassword: (p: { token: string; password: string }) => Promise<void>;
   logout: () => Promise<void>;
@@ -72,6 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password: string;
       email?: string;
       phone?: string;
+      planKey: string;
     }) => {
       const res = await api.register(body);
       setSessionTokens(res.accessToken, res.refreshToken);

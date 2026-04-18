@@ -23,6 +23,7 @@ import type {
   UserPublic,
   OnboardingBootstrap,
   EntitlementsPayload,
+  PublicPricingPlansResponse,
   PlanListItem,
   PlanDetail,
   PlanVersionDetail,
@@ -135,6 +136,12 @@ export function getErrorMessage(err: unknown): string {
 }
 
 export const api = {
+  /** Public catalog for marketing and registration (no JWT). */
+  async getPublicPricingPlans() {
+    const { data } = await rawApi.get<Ok<PublicPricingPlansResponse>>("/public/pricing-plans");
+    return unwrap(data);
+  },
+
   async login(body: { email?: string; phone?: string; password: string }) {
     const { data } = await rawApi.post<Ok<{ user: UserPublic; accessToken: string; refreshToken: string }>>(
       "/auth/login",
@@ -148,6 +155,7 @@ export const api = {
     password: string;
     email?: string;
     phone?: string;
+    planKey: string;
   }) {
     const { data } = await rawApi.post<Ok<{ user: UserPublic; accessToken: string; refreshToken: string }>>(
       "/auth/register",

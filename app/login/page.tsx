@@ -86,7 +86,14 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col bg-background px-4 py-10 sm:items-center sm:justify-center sm:py-0">
       <div className="mx-auto w-full max-w-md">
-        <Logo className="mb-10" />
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <Link href="/" aria-label="Umutungo home">
+            <Logo />
+          </Link>
+          <Link href="/" className="text-xs font-medium text-muted hover:text-foreground">
+            ← Home
+          </Link>
+        </div>
         <Card className="border-border p-0 shadow-card">
           <CardHeader className="border-b border-border px-6 py-5">
             <CardTitle className="text-lg font-semibold text-foreground">Sign in</CardTitle>

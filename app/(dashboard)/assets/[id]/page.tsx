@@ -48,6 +48,50 @@ function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+type UnitTileRent = "VACANT" | "PAID" | "LATE" | "CRITICAL";
+
+/** Map tile visuals: rent status drives payment health, but must not contradict `unit.status` (list uses status). */
+function unitTilePresentation(u: { status: Unit["status"]; rentStatus: UnitTileRent }) {
+  if (u.rentStatus === "CRITICAL") {
+    return {
+      cardClass: "border-rose-300 bg-gradient-to-br from-rose-50 to-rose-100/40",
+      badgeClass: "bg-rose-100 text-rose-700",
+      primary: "CRITICAL",
+      secondary: null as string | null,
+    };
+  }
+  if (u.rentStatus === "LATE") {
+    return {
+      cardClass: "border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100/40",
+      badgeClass: "bg-amber-100 text-amber-700",
+      primary: "LATE",
+      secondary: null,
+    };
+  }
+  if (u.rentStatus === "PAID") {
+    return {
+      cardClass: "border-emerald-300 bg-gradient-to-br from-emerald-50 to-emerald-100/40",
+      badgeClass: "bg-emerald-100 text-emerald-700",
+      primary: "PAID",
+      secondary: null,
+    };
+  }
+  if (u.status === "occupied" && u.rentStatus === "VACANT") {
+    return {
+      cardClass: "border-main-blue/35 bg-gradient-to-br from-blue-soft to-background",
+      badgeClass: "bg-main-blue/15 text-main-blue",
+      primary: "Occupied",
+      secondary: "No active lease",
+    };
+  }
+  return {
+    cardClass: "border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100/40",
+    badgeClass: "bg-slate-100 text-slate-700",
+    primary: "Vacant",
+    secondary: null,
+  };
+}
+
 export default function AssetDetailPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
@@ -465,7 +509,10 @@ export default function AssetDetailPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <p className="text-sm font-semibold text-foreground">Occupancy & payment map</p>
-                <p className="text-xs text-muted">Modern tile map with payment-status colors.</p>
+                <p className="text-xs text-muted">
+                  Tiles use rent coverage (lease + payments). If a unit is marked occupied but has no lease yet, the
+                  tile shows Occupied — not Vacant.
+                </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {(["all", "PAID", "LATE", "CRITICAL", "VACANT"] as const).map((status) => (
@@ -507,7 +554,9 @@ export default function AssetDetailPage() {
               </p>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {unitsForMap.map((u) => (
+              {unitsForMap.map((u) => {
+                const vis = unitTilePresentation({ status: u.status, rentStatus: u.rentStatus });
+                return (
                 <button
                   key={u.id}
                   type="button"
@@ -515,13 +564,7 @@ export default function AssetDetailPage() {
                   className={cn(
                     "group relative overflow-hidden rounded-2xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
                     "before:absolute before:inset-0 before:pointer-events-none before:bg-gradient-to-br before:from-white/40 before:to-transparent",
-                    u.rentStatus === "CRITICAL"
-                      ? "border-rose-300 bg-gradient-to-br from-rose-50 to-rose-100/40"
-                      : u.rentStatus === "LATE"
-                        ? "border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100/40"
-                        : u.rentStatus === "PAID"
-                          ? "border-emerald-300 bg-gradient-to-br from-emerald-50 to-emerald-100/40"
-                          : "border-slate-300 bg-gradient-to-br from-slate-50 to-slate-100/40",
+                    vis.cardClass,
                   )}
                 >
                   <div className="relative z-10">
@@ -530,26 +573,23 @@ export default function AssetDetailPage() {
                     <p className="mt-1 text-xs text-muted">
                       {u.rentAmount ? `${formatCompactMoney(u.rentAmount)}/period` : "No rent set"}
                     </p>
-                    <div className="mt-3 flex items-center justify-between">
-                      <span
-                        className={cn(
-                          "rounded-full px-2 py-0.5 text-[11px] font-medium",
-                          u.rentStatus === "CRITICAL"
-                            ? "bg-rose-100 text-rose-700"
-                            : u.rentStatus === "LATE"
-                              ? "bg-amber-100 text-amber-700"
-                              : u.rentStatus === "PAID"
-                                ? "bg-emerald-100 text-emerald-700"
-                                : "bg-slate-100 text-slate-700",
-                        )}
-                      >
-                        {u.rentStatus}
-                      </span>
-                      {u.overdueDays > 0 ? <span className="text-[11px] font-medium text-muted">{u.overdueDays}d overdue</span> : null}
+                    <div className="mt-3 flex flex-col gap-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-medium", vis.badgeClass)}>
+                          {vis.primary}
+                        </span>
+                        {u.overdueDays > 0 ? (
+                          <span className="shrink-0 text-[11px] font-medium text-muted">{u.overdueDays}d overdue</span>
+                        ) : null}
+                      </div>
+                      {vis.secondary ? (
+                        <p className="text-[10px] leading-snug text-muted">{vis.secondary}</p>
+                      ) : null}
                     </div>
                   </div>
                 </button>
-              ))}
+              );
+              })}
               {unitsForMap.length === 0 ? (
                 <div className="col-span-full rounded-xl border border-dashed border-border px-4 py-8 text-center text-sm text-muted">
                   No units match this filter.

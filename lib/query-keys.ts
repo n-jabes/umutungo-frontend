@@ -2,6 +2,8 @@
 const onboardingRoot = ["auth", "me", "onboarding"] as const;
 
 export const queryKeys = {
+  /** `GET /public/pricing-plans` — published catalog for marketing & signup (no auth). */
+  publicPricingPlans: ["public", "pricing-plans"] as const,
   me: ["me"] as const,
   /** `GET /me/entitlements` — plan, features, usage (owner/agent). */
   entitlements: ["me", "entitlements"] as const,
