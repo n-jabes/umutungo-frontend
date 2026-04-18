@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
+import { PlatformAdminGuard } from "@/components/platform/platform-admin-guard";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { DataTableShell } from "@/components/ui/data-table-shell";
@@ -69,6 +70,7 @@ export default function PlatformPlansListPage() {
 
   return (
     <PlatformAccessGuard>
+      <PlatformAdminGuard>
       <PlatformPageShell
         title="Plans"
         description="Published plan matrices are frozen. Operators edit a draft, then publish. Features live in a global catalog—each plan draft gets one row per feature."
@@ -330,6 +332,7 @@ export default function PlatformPlansListPage() {
           </>
         )}
       </PlatformPageShell>
+      </PlatformAdminGuard>
     </PlatformAccessGuard>
   );
 }

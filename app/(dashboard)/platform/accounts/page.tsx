@@ -1,6 +1,7 @@
 "use client";
 
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
+import { PlatformAdminGuard } from "@/components/platform/platform-admin-guard";
 import {
   PlatformPageShell,
   PlatformSectionCard,
@@ -9,6 +10,7 @@ import {
 export default function PlatformAccountsPage() {
   return (
     <PlatformAccessGuard>
+      <PlatformAdminGuard>
       <PlatformPageShell
         title="Accounts"
         description="Inspect account usage, entitlement state, and over-limit compliance from one place."
@@ -21,6 +23,7 @@ export default function PlatformAccountsPage() {
           </ul>
         </PlatformSectionCard>
       </PlatformPageShell>
+      </PlatformAdminGuard>
     </PlatformAccessGuard>
   );
 }

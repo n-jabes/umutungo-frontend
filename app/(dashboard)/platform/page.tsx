@@ -80,6 +80,7 @@ function AdminAuditLine({ entry }: { entry: AuditLogEntry }) {
 export default function PlatformOverviewPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  const isAgent = user?.role === "agent";
   const qc = useQueryClient();
 
   const summary = useQuery({
@@ -108,51 +109,44 @@ export default function PlatformOverviewPage() {
 
   return (
     <PlatformAccessGuard>
-      <PlatformPageShell
-        title="Operations overview"
-        description="High-signal subscription health, trial runway, quota pressure, and recent admin activity. Press Ctrl K (⌘K on Mac) for quick navigation anywhere in the platform workspace."
-        actions={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-            <Button
-              type="button"
-              variant="secondary"
-              size="md"
-              className="w-full justify-center gap-2 sm:w-auto"
-              onClick={() => openPlatformCommandPalette()}
-            >
-              Quick actions
-            </Button>
-            <div className="flex flex-wrap gap-2">
-              <Link href="/platform/plans" className={buttonClassName({ variant: "secondary", className: "flex-1 sm:flex-none" })}>
-                Plans
-              </Link>
-              <Link
-                href="/platform/plans/compare"
-                className={buttonClassName({ variant: "secondary", className: "flex-1 sm:flex-none" })}
+      {isAdmin ? (
+        <PlatformPageShell
+          title="Operations overview"
+          description="High-signal subscription health, trial runway, quota pressure, and recent admin activity. Press Ctrl K (⌘K on Mac) for quick navigation anywhere in the platform workspace."
+          actions={
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                className="w-full justify-center gap-2 sm:w-auto"
+                onClick={() => openPlatformCommandPalette()}
               >
-                Compare
-              </Link>
-              <Link
-                href="/platform/subscriptions"
-                className={buttonClassName({ variant: "secondary", className: "flex-1 sm:flex-none" })}
-              >
-                Subscriptions
-              </Link>
-              <Link href="/platform/audit" className={buttonClassName({ variant: "secondary", className: "flex-1 sm:flex-none" })}>
-                Audit
-              </Link>
+                Quick actions
+              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Link href="/platform/plans" className={buttonClassName({ variant: "secondary", className: "flex-1 sm:flex-none" })}>
+                  Plans
+                </Link>
+                <Link
+                  href="/platform/plans/compare"
+                  className={buttonClassName({ variant: "secondary", className: "flex-1 sm:flex-none" })}
+                >
+                  Compare
+                </Link>
+                <Link
+                  href="/platform/subscriptions"
+                  className={buttonClassName({ variant: "secondary", className: "flex-1 sm:flex-none" })}
+                >
+                  Subscriptions
+                </Link>
+                <Link href="/platform/audit" className={buttonClassName({ variant: "secondary", className: "flex-1 sm:flex-none" })}>
+                  Audit
+                </Link>
+              </div>
             </div>
-          </div>
-        }
-      >
-        {!isAdmin ? (
-          <PlatformSectionCard
-            title="Admin workspace"
-            description="Live metrics and audit excerpts are limited to platform administrators."
-          >
-            <p className="text-sm text-muted">Sign in with an admin account to use operator tools and this overview.</p>
-          </PlatformSectionCard>
-        ) : (
+          }
+        >
           <>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-xs text-muted">
@@ -353,8 +347,46 @@ export default function PlatformOverviewPage() {
               )}
             </PlatformSectionCard>
           </>
-        )}
-      </PlatformPageShell>
+        </PlatformPageShell>
+      ) : (
+        <PlatformPageShell
+          title="Your plan & billing"
+          description={
+            isAgent
+              ? "You are linked to an owner portfolio. Review the active plan, limits, and usage here; billing changes are handled by the owner or an administrator."
+              : "Manage how your subscription maps to limits and usage. Payment method history and invoices will live here in a future update—for day-to-day rent collection, use the Rental workspace."
+          }
+          actions={
+            <div className="flex flex-wrap gap-2">
+              <Link href="/settings?tab=plan" className={buttonClassName({ variant: "secondary" })}>
+                Open plan & usage
+              </Link>
+              <Link href="/payments" className={buttonClassName({ variant: "secondary" })}>
+                Rental payments
+              </Link>
+            </div>
+          }
+        >
+          <PlatformSectionCard
+            title="Subscription & limits"
+            description="See your current plan, feature flags, and usage against limits (same data as Settings → Plan & usage)."
+          >
+            <p className="text-sm text-muted">
+              We keep detailed controls in Settings so they stay consistent across workspaces.
+            </p>
+            <Link href="/settings?tab=plan" className={cn(buttonClassName({ variant: "primary" }), "mt-4 inline-flex")}>
+              Go to plan & usage
+            </Link>
+          </PlatformSectionCard>
+
+          <PlatformSectionCard
+            title="Payment methods & history"
+            description="Reserved for a future release: saved payment methods, invoices, and payout history in one place."
+          >
+            <p className="text-sm text-muted">Not available yet — you will see it here when billing self-serve ships.</p>
+          </PlatformSectionCard>
+        </PlatformPageShell>
+      )}
     </PlatformAccessGuard>
   );
 }

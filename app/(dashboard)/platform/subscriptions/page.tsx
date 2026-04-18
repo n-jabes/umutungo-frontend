@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
+import { PlatformAdminGuard } from "@/components/platform/platform-admin-guard";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
@@ -53,6 +54,7 @@ export default function PlatformSubscriptionsPage() {
 
   return (
     <PlatformAccessGuard>
+      <PlatformAdminGuard>
       <PlatformPageShell
         title="Subscriptions"
         description="Manual lifecycle: grant plans, set billing windows and trials, extend, downgrade, cancel, or expire immediately. Every sensitive change requires an operator reason and is written to the subscription event log."
@@ -264,6 +266,7 @@ export default function PlatformSubscriptionsPage() {
           </>
         )}
       </PlatformPageShell>
+      </PlatformAdminGuard>
     </PlatformAccessGuard>
   );
 }

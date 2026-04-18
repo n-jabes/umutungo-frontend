@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { DashboardShell } from "@/components/layout/dashboard-shell";
 import { useAuth } from "@/contexts/auth-context";
 import { useWorkspace } from "@/contexts/workspace-context";
@@ -22,12 +23,13 @@ export default function DashboardGroupLayout({
 
   useEffect(() => {
     if (!ready || !user) return;
-    if (user.role === "agent" && workspace !== "rental") {
+    /** Agents use Rental + Platform; Portfolio is owner-only. */
+    if (user.role === "agent" && workspace === "portfolio") {
       setWorkspace("rental");
       router.replace("/dashboard");
       return;
     }
-    if (workspace === "platform" && !["owner", "admin"].includes(user.role)) {
+    if (workspace === "platform" && !["owner", "admin", "agent"].includes(user.role)) {
       setWorkspace("rental");
       router.replace("/dashboard");
     }
@@ -41,5 +43,9 @@ export default function DashboardGroupLayout({
     );
   }
 
-  return <DashboardShell>{children}</DashboardShell>;
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-background" />}>
+      <DashboardShell>{children}</DashboardShell>
+    </Suspense>
+  );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
+import { PlatformAdminGuard } from "@/components/platform/platform-admin-guard";
 import { usePlatformTwoStepPreference } from "@/components/platform/use-platform-two-step-preference";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
 import { AuditTrailPanel } from "@/components/settings/audit-trail-panel";
@@ -48,6 +49,7 @@ export default function PlatformAuditPage() {
 
   return (
     <PlatformAccessGuard>
+      <PlatformAdminGuard>
       <PlatformPageShell
         title="Audit & compliance"
         description="Immutable platform-wide action log. Entries are append-only; use filters to narrow by action, entity, or actor role. Enable two-step typing confirmations on sensitive operations from this page or any operator console."
@@ -117,6 +119,7 @@ export default function PlatformAuditPage() {
           </>
         )}
       </PlatformPageShell>
+      </PlatformAdminGuard>
     </PlatformAccessGuard>
   );
 }

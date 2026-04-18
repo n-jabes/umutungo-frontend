@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Building2,
+  CreditCard,
   FileText,
   GitCompareArrows,
   Home,
@@ -20,7 +21,7 @@ import {
   ShieldCheck,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
@@ -46,6 +47,7 @@ const navByWorkspace = {
     { href: "/portfolio", label: "Portfolio", icon: LineChart },
     { href: "/assets",    label: "Assets",    icon: Building2 },
   ],
+  /** Operator-only; tenants use `platformNavForTenant` at runtime. */
   platform: [
     { href: "/platform",               label: "Overview",      icon: ShieldCheck },
     { href: "/platform/plans",         label: "Plans",         icon: FileText },
@@ -55,6 +57,24 @@ const navByWorkspace = {
     { href: "/platform/audit",         label: "Audit",         icon: ScrollText },
   ],
 } as const;
+
+const platformNavForTenant = [
+  { href: "/platform", label: "Overview", icon: ShieldCheck },
+  { href: "/settings?tab=plan", label: "Plan & billing", icon: CreditCard },
+] as const;
+
+function isNavHrefActive(pathname: string, href: string, searchParams: ReturnType<typeof useSearchParams>) {
+  if (href.includes("?")) {
+    const [path, qs] = href.split("?");
+    if (pathname !== path) return false;
+    const want = new URLSearchParams(qs);
+    for (const [k, v] of want.entries()) {
+      if (searchParams.get(k) !== v) return false;
+    }
+    return true;
+  }
+  return pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
+}
 
 /* Home page per workspace — where to land when switching */
 const workspaceHome: Record<Workspace, string> = {
@@ -78,6 +98,7 @@ function NavLinks({
   itemsOverride?: ReadonlyArray<{ href: string; label: string; icon: React.ElementType }>;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [moreOpen, setMoreOpen] = useState(false);
   const items = itemsOverride ?? navByWorkspace[workspace];
   const mobilePrimary = items.slice(0, 4) as typeof items[number][];
@@ -87,7 +108,7 @@ function NavLinks({
     return (
       <nav className="relative flex w-full items-center justify-between px-2">
         {mobilePrimary.map(({ href, label, icon: Icon }) => {
-          const active = pathname === href || pathname.startsWith(`${href}/`);
+          const active = isNavHrefActive(pathname, href, searchParams);
           return (
             <Link
               key={href}
@@ -158,7 +179,7 @@ function NavLinks({
       )}
     >
       {items.map(({ href, label, icon: Icon }) => {
-        const active = pathname === href || pathname.startsWith(`${href}/`);
+        const active = isNavHrefActive(pathname, href, searchParams);
         return (
           <Link
             key={href}
@@ -196,15 +217,32 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawer, setDrawer] = useState(false);
   const isAgent = user?.role === "agent";
-  const canUsePlatform = user?.role === "owner" || user?.role === "admin";
-  const navItems = isAgent
-    ? navByWorkspace.rental.filter((item) =>
+  const canUsePlatform = user?.role === "owner" || user?.role === "admin" || user?.role === "agent";
+
+  const platformNavResolved = useMemo(
+    () => (user?.role === "admin" ? navByWorkspace.platform : platformNavForTenant),
+    [user?.role],
+  );
+
+  const navItems = useMemo(() => {
+    if (isAgent) {
+      if (workspace === "platform") return [...platformNavResolved];
+      return navByWorkspace.rental.filter((item) =>
         ["/dashboard", "/leases", "/payments", "/settings"].includes(item.href),
-      )
-    : navByWorkspace[workspace];
+      );
+    }
+    if (workspace === "platform") return [...platformNavResolved];
+    return navByWorkspace[workspace];
+  }, [isAgent, workspace, platformNavResolved]);
 
   function handleWorkspaceSwitch(next: Workspace) {
-    if (isAgent) return;
+    if (isAgent) {
+      if (next === "portfolio") return;
+      if (next === "platform" && !canUsePlatform) return;
+      setWorkspace(next);
+      router.push(workspaceHome[next]);
+      return;
+    }
     if (next === "platform" && !canUsePlatform) return;
     setWorkspace(next);
     router.push(workspaceHome[next]);
@@ -215,7 +253,13 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       <div className="mx-auto flex h-full max-w-[1600px]">
         <aside className="hidden h-screen w-64 shrink-0 border-r border-border bg-card/80 px-4 py-8 backdrop-blur-sm lg:flex lg:flex-col">
           <Logo className="px-2" size="sm" />
-          <WorkspaceSwitcher workspace={workspace} onSwitch={handleWorkspaceSwitch} isAgent={isAgent} canUsePlatform={canUsePlatform} />
+          <WorkspaceSwitcher
+            workspace={workspace}
+            onSwitch={handleWorkspaceSwitch}
+            isAgent={isAgent}
+            canUsePlatform={canUsePlatform}
+            platformDescriptionOverride={user?.role !== "admin" ? "Your plan, usage & billing" : undefined}
+          />
           <div className="mt-10 flex-1">
             <NavLinks variant="sidebar" workspace={workspace} itemsOverride={navItems} />
           </div>
@@ -291,6 +335,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 }}
                 isAgent={isAgent}
                 canUsePlatform={canUsePlatform}
+                platformDescriptionOverride={user?.role !== "admin" ? "Your plan, usage & billing" : undefined}
                 className="mb-5"
               />
               <NavLinks variant="mobile-drawer" workspace={workspace} itemsOverride={navItems} onNavigate={() => setDrawer(false)} />
@@ -329,15 +374,20 @@ function WorkspaceSwitcher({
   className,
   isAgent,
   canUsePlatform,
+  platformDescriptionOverride,
 }: {
   workspace: Workspace;
   onSwitch: (w: Workspace) => void;
   className?: string;
   isAgent?: boolean;
   canUsePlatform?: boolean;
+  /** Shown under "Platform" for owners/agents (not admins). */
+  platformDescriptionOverride?: string;
 }) {
   const options = isAgent
-    ? (["rental"] as const)
+    ? canUsePlatform
+      ? (["rental", "platform"] as const)
+      : (["rental"] as const)
     : canUsePlatform
       ? (["rental", "portfolio", "platform"] as const)
       : (["rental", "portfolio"] as const);
@@ -348,7 +398,10 @@ function WorkspaceSwitcher({
         Workspace
       </p>
       {options.map((w) => {
-        const { label, icon: Icon, description } = workspaceMeta[w];
+        const base = workspaceMeta[w];
+        const { label, icon: Icon } = base;
+        const description =
+          w === "platform" && platformDescriptionOverride ? platformDescriptionOverride : base.description;
         const active = workspace === w;
         return (
           <button

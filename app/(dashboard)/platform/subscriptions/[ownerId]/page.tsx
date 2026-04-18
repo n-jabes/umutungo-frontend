@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
+import { PlatformAdminGuard } from "@/components/platform/platform-admin-guard";
 import { PlatformSafetyDialog } from "@/components/platform/platform-safety-dialog";
 import { usePlatformTwoStepPreference } from "@/components/platform/use-platform-two-step-preference";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
@@ -210,9 +211,11 @@ export default function PlatformSubscriptionDetailPage() {
   if (!ownerId) {
     return (
       <PlatformAccessGuard>
-        <PlatformPageShell title="Subscription" description="Missing owner id.">
-          <p className="text-sm text-muted">Check the URL or open an owner from the subscriptions list.</p>
-        </PlatformPageShell>
+        <PlatformAdminGuard>
+          <PlatformPageShell title="Subscription" description="Missing owner id.">
+            <p className="text-sm text-muted">Check the URL or open an owner from the subscriptions list.</p>
+          </PlatformPageShell>
+        </PlatformAdminGuard>
       </PlatformAccessGuard>
     );
   }
@@ -221,6 +224,7 @@ export default function PlatformSubscriptionDetailPage() {
 
   return (
     <PlatformAccessGuard>
+      <PlatformAdminGuard>
       <PlatformPageShell
         title={detail.data ? detail.data.owner.name : "Subscription"}
         description="Operator console for one owner account. All actions below require a written reason and append to the immutable subscription event log."
@@ -615,6 +619,7 @@ export default function PlatformSubscriptionDetailPage() {
         typedPhraseLabel={`Type ${safety?.phrase ?? ""} to confirm`}
         typedPhraseExpected={safety?.phrase ?? ""}
       />
+      </PlatformAdminGuard>
     </PlatformAccessGuard>
   );
 }

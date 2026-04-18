@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
+import { PlatformAdminGuard } from "@/components/platform/platform-admin-guard";
 import { PlatformSafetyDialog } from "@/components/platform/platform-safety-dialog";
 import { usePlatformTwoStepPreference } from "@/components/platform/use-platform-two-step-preference";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
@@ -201,15 +202,18 @@ export default function PlatformPlanDetailPage() {
   if (!planKey) {
     return (
       <PlatformAccessGuard>
-        <PlatformPageShell title="Plan" description="Missing plan key.">
-          <p className="text-sm text-muted">Check the URL or return to the plan list.</p>
-        </PlatformPageShell>
+        <PlatformAdminGuard>
+          <PlatformPageShell title="Plan" description="Missing plan key.">
+            <p className="text-sm text-muted">Check the URL or return to the plan list.</p>
+          </PlatformPageShell>
+        </PlatformAdminGuard>
       </PlatformAccessGuard>
     );
   }
 
   return (
     <PlatformAccessGuard>
+      <PlatformAdminGuard>
       <PlatformPageShell
         title={plan.data ? plan.data.name : "Plan"}
         description="You can edit plan name and description anytime. The feature matrix only unlocks when the version dropdown shows a draft: use New draft from latest published (or Rollback). Published versions stay read-only so tenants always see a fixed snapshot until you publish again."
@@ -530,6 +534,7 @@ export default function PlatformPlanDetailPage() {
         typedPhraseLabel="Type ROLLBACK to confirm"
         typedPhraseExpected="ROLLBACK"
       />
+      </PlatformAdminGuard>
     </PlatformAccessGuard>
   );
 }

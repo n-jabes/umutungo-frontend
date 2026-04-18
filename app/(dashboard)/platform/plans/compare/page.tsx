@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
+import { PlatformAdminGuard } from "@/components/platform/platform-admin-guard";
 import { PlatformPageShell, PlatformSectionCard } from "@/components/platform/platform-page-shell";
 import { buttonClassName } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
@@ -30,6 +31,7 @@ export default function PlatformPlansComparePage() {
 
   return (
     <PlatformAccessGuard>
+      <PlatformAdminGuard>
       <PlatformPageShell
         title="Compare plans"
         description="Side-by-side view of the latest published version for each plan. Useful before publishing a draft or when tuning the matrix."
@@ -79,6 +81,7 @@ export default function PlatformPlansComparePage() {
           </PlatformSectionCard>
         )}
       </PlatformPageShell>
+      </PlatformAdminGuard>
     </PlatformAccessGuard>
   );
 }

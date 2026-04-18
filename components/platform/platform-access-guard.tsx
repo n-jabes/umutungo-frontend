@@ -9,14 +9,14 @@ export function PlatformAccessGuard({
   children: React.ReactNode;
 }) {
   const { user } = useAuth();
-  const allowed = user?.role === "owner" || user?.role === "admin";
+  const allowed = user?.role === "owner" || user?.role === "admin" || user?.role === "agent";
   if (allowed) return <>{children}</>;
 
   return (
     <Card className="p-8">
       <h1 className="text-2xl font-semibold">Platform workspace restricted</h1>
       <p className="mt-2 text-sm text-muted">
-        Only owner and admin accounts can access plans, subscriptions, and platform operations.
+        Only owner, agent, and admin accounts can open this workspace.
       </p>
     </Card>
   );

@@ -379,7 +379,7 @@ export function RecordPaymentModal({
       open={open}
       onClose={onClose}
       title="Record payment"
-      description="Log rent received for a date range (e.g. several months in one payment). The system stores the exact period covered."
+      description="Log rent received for a date range (e.g. several months in one payment). The system stores the exact period covered and applies the amount to the oldest covered billing period first, then the next, until the payment is used up."
       size="lg"
     >
       <form
