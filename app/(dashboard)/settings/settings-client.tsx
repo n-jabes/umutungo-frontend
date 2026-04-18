@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Copy } from "lucide-react";
@@ -145,6 +146,48 @@ export function SettingsPageClient() {
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
+  const legalSummary =
+    user?.termsAcceptedAt != null ? (
+      <p className="mt-2 text-sm text-muted">
+        You accepted the{" "}
+        <Link href="/terms" className="font-medium text-main-blue underline underline-offset-2">
+          Terms of Service
+        </Link>{" "}
+        and{" "}
+        <Link href="/privacy" className="font-medium text-main-blue underline underline-offset-2">
+          Privacy Policy
+        </Link>{" "}
+        on{" "}
+        <time dateTime={user.termsAcceptedAt}>
+          {new Date(user.termsAcceptedAt).toLocaleDateString(undefined, {
+            year: "numeric",
+            month: "long",
+            day: "numeric",
+          })}
+        </time>
+        {user.termsVersion ? (
+          <>
+            {" "}
+            (legal bundle <span className="font-mono text-xs">{user.termsVersion}</span>).
+          </>
+        ) : (
+          "."
+        )}
+      </p>
+    ) : (
+      <p className="mt-2 text-sm text-muted">
+        No Terms and Privacy acceptance is recorded for this account. View the current documents:{" "}
+        <Link href="/terms" className="font-medium text-main-blue underline underline-offset-2">
+          Terms
+        </Link>
+        {" · "}
+        <Link href="/privacy" className="font-medium text-main-blue underline underline-offset-2">
+          Privacy
+        </Link>
+        .
+      </p>
+    );
+
   if (user?.role === "agent") {
     return (
       <div className="space-y-8">
@@ -169,6 +212,10 @@ export function SettingsPageClient() {
             Agent accounts cannot manage users, agents, or the audit trail. Ask your owner if you need changes.
           </p>
         </Card>
+        <Card className="border-border p-6 shadow-sm">
+          <h2 className="text-sm font-semibold text-foreground">Legal</h2>
+          {legalSummary}
+        </Card>
       </div>
     );
   }
@@ -182,6 +229,11 @@ export function SettingsPageClient() {
           billing are recorded with request context where the API supports it.
         </p>
       </header>
+
+      <Card className="border-border p-6 shadow-sm">
+        <h2 className="text-sm font-semibold text-foreground">Legal</h2>
+        {legalSummary}
+      </Card>
 
       <Card className="overflow-hidden border-border shadow-sm">
         <SettingsTabs

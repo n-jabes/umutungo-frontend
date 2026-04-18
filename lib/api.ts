@@ -142,6 +142,13 @@ export const api = {
     return unwrap(data);
   },
 
+  async getPublicLegalMeta() {
+    const { data } = await rawApi.get<
+      Ok<{ currentLegalBundleVersion: string; termsPath: string; privacyPath: string }>
+    >("/public/legal-meta");
+    return unwrap(data);
+  },
+
   async login(body: { email?: string; phone?: string; password: string }) {
     const { data } = await rawApi.post<Ok<{ user: UserPublic; accessToken: string; refreshToken: string }>>(
       "/auth/login",
@@ -156,6 +163,8 @@ export const api = {
     email?: string;
     phone?: string;
     planKey: string;
+    termsAccepted: boolean;
+    termsVersion: string;
   }) {
     const { data } = await rawApi.post<Ok<{ user: UserPublic; accessToken: string; refreshToken: string }>>(
       "/auth/register",

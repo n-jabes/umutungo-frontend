@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2, Lock, Mail, Phone } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
+import { LegalFooterInline } from "@/components/legal/legal-footer-inline";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/contexts/auth-context";
@@ -213,6 +214,9 @@ export default function LoginPage() {
                 Create an account
               </Link>
             </p>
+            <div className="mt-6 flex justify-center">
+              <LegalFooterInline className="text-center text-xs text-muted" />
+            </div>
           </CardContent>
         </Card>
       </div>

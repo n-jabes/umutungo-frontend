@@ -17,6 +17,10 @@ export type UserPublic = {
   managedByOwnerId?: string | null;
   mustSetPassword?: boolean;
   createdAt: string;
+  /** ISO timestamp when Terms + Privacy were accepted (owners at signup; others may be null). */
+  termsAcceptedAt?: string | null;
+  /** Legal bundle version string; see `/terms` and Backend `config/legal.js`. */
+  termsVersion?: string | null;
 };
 
 /** Standard error JSON from the API when `error` is true. */

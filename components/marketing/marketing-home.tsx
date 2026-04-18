@@ -20,7 +20,9 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
+import { LegalFooterInline } from "@/components/legal/legal-footer-inline";
 import { CatalogPlanCards } from "@/components/marketing/catalog-plan-cards";
+import { PricingPlansLoadError } from "@/components/marketing/pricing-plans-load-error";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
@@ -534,13 +536,18 @@ export function MarketingHome() {
                   <Loader2 className="h-10 w-10 animate-spin text-main-blue" strokeWidth={1.75} />
                 </div>
               ) : plansQuery.isError ? (
-                <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm text-red-800 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-100">
-                  Could not load plans. Ensure the API is running and the entitlements catalog is seeded, then refresh.
-                </p>
+                <PricingPlansLoadError
+                  error={plansQuery.error}
+                  onRetry={() => plansQuery.refetch()}
+                  retrying={plansQuery.isFetching && !plansQuery.isLoading}
+                />
               ) : plansQuery.data && plansQuery.data.plans.length > 0 ? (
                 <CatalogPlanCards plans={plansQuery.data.plans} mode="cta" />
               ) : (
-                <p className="text-center text-sm text-muted">No published plans found. Run the database seed.</p>
+                <p className="mx-auto max-w-md text-center text-sm leading-relaxed text-muted">
+                  There are no published plans to show yet. Please check back soon, or sign in if you already have an
+                  account.
+                </p>
               )}
             </div>
           </div>
@@ -571,14 +578,17 @@ export function MarketingHome() {
       <footer className="relative z-10 border-t border-border/80 py-10">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 px-4 sm:flex-row sm:px-6">
           <Logo />
-          <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-muted">
-            <Link href="/login" className="hover:text-foreground">
-              Sign in
-            </Link>
-            <Link href="/register" className="hover:text-foreground">
-              Register
-            </Link>
-            <span>© {new Date().getFullYear()} Umutungo</span>
+          <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center sm:gap-6">
+            <LegalFooterInline className="text-xs text-muted" />
+            <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-muted">
+              <Link href="/login" className="hover:text-foreground">
+                Sign in
+              </Link>
+              <Link href="/register" className="hover:text-foreground">
+                Register
+              </Link>
+              <span>© {new Date().getFullYear()} Umutungo</span>
+            </div>
           </div>
         </div>
       </footer>

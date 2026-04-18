@@ -8,6 +8,7 @@ import { Logo } from "@/components/brand/Logo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CatalogPlanCards } from "@/components/marketing/catalog-plan-cards";
+import { PricingPlansLoadError } from "@/components/marketing/pricing-plans-load-error";
 import { MockPaymentPanel } from "@/components/marketing/mock-payment-panel";
 import { useAuth } from "@/contexts/auth-context";
 import { api, getErrorMessage } from "@/lib/api";
@@ -23,6 +24,8 @@ import {
   rwandaPhoneErrorMessage,
 } from "@/lib/phone";
 import { cn } from "@/lib/utils";
+import { CURRENT_LEGAL_BUNDLE_VERSION } from "@/lib/legal";
+import { LegalFooterInline } from "@/components/legal/legal-footer-inline";
 import { useQuery } from "@tanstack/react-query";
 
 type Step = 1 | 2 | 3;
@@ -44,6 +47,7 @@ function RegisterFlow() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [legalAccepted, setLegalAccepted] = useState(false);
 
   const plansQuery = useQuery({
     queryKey: queryKeys.publicPricingPlans,
@@ -99,6 +103,10 @@ function RegisterFlow() {
       setError("Passwords do not match.");
       return;
     }
+    if (!legalAccepted) {
+      setError("Please read and accept the Terms of Service and Privacy Policy to continue.");
+      return;
+    }
     setStep(3);
   }
 
@@ -114,6 +122,8 @@ function RegisterFlow() {
         email: email.trim() || undefined,
         phone: normalizedPhone ?? undefined,
         planKey: selectedPlanKey,
+        termsAccepted: true,
+        termsVersion: CURRENT_LEGAL_BUNDLE_VERSION,
       });
       router.replace("/dashboard");
     } catch (err) {
@@ -173,7 +183,12 @@ function RegisterFlow() {
                 <Loader2 className="h-8 w-8 animate-spin text-main-blue" strokeWidth={1.75} />
               </div>
             ) : plansQuery.isError ? (
-              <p className="text-sm text-red-600">Could not load plans. Check the API and seed, then retry.</p>
+              <PricingPlansLoadError
+                error={plansQuery.error}
+                onRetry={() => plansQuery.refetch()}
+                retrying={plansQuery.isFetching && !plansQuery.isLoading}
+                align="start"
+              />
             ) : step === 1 ? (
               <div className="space-y-6">
                 <CatalogPlanCards
@@ -318,6 +333,25 @@ function RegisterFlow() {
                     <p className="mt-1 text-xs font-medium text-main-green">Passwords match.</p>
                   ) : null}
                 </div>
+                <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted-bg/30 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={legalAccepted}
+                    onChange={(e) => setLegalAccepted(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-border text-main-blue focus:ring-main-blue"
+                  />
+                  <span className="text-xs leading-relaxed text-muted">
+                    I have read and agree to the{" "}
+                    <Link href="/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-main-blue hover:underline">
+                      Terms of Service
+                    </Link>{" "}
+                    and{" "}
+                    <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-main-blue hover:underline">
+                      Privacy Policy
+                    </Link>
+                    . (Bundle <span className="font-mono text-foreground">{CURRENT_LEGAL_BUNDLE_VERSION}</span>)
+                  </span>
+                </label>
                 {error ? <p className="text-sm text-red-600">{error}</p> : null}
                 <div className="flex justify-between gap-3 pt-2">
                   <Button type="button" variant="secondary" onClick={() => setStep(1)}>
@@ -325,6 +359,7 @@ function RegisterFlow() {
                   </Button>
                   <Button type="submit">Continue to checkout</Button>
                 </div>
+                <LegalFooterInline />
               </form>
             ) : selectedPlan ? (
               <div>
