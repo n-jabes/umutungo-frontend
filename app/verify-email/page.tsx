@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
-import { Button } from "@/components/ui/button";
+import { buttonClassName } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api, getErrorMessage, setSessionTokens } from "@/lib/api";
 
@@ -58,16 +58,16 @@ function VerifyEmailInner() {
               <Loader2 className="h-8 w-8 animate-spin text-main-blue" strokeWidth={1.75} />
             </div>
           ) : (
-            <p className={`text-sm ${status === "error" ? "text-red-600" : "text-muted-foreground"}`}>{message}</p>
+            <p className={`text-sm ${status === "error" ? "text-red-600" : "text-muted"}`}>{message}</p>
           )}
           {status === "error" ? (
             <div className="flex flex-wrap gap-3">
-              <Button type="button" variant="secondary" asChild>
-                <Link href="/login">Sign in</Link>
-              </Button>
-              <Button type="button" asChild>
-                <Link href="/">Home</Link>
-              </Button>
+              <Link href="/login" className={buttonClassName({ variant: "secondary" })}>
+                Sign in
+              </Link>
+              <Link href="/" className={buttonClassName({ variant: "primary" })}>
+                Home
+              </Link>
             </div>
           ) : null}
         </CardContent>
