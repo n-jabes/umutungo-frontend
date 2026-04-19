@@ -523,6 +523,18 @@ export const api = {
     return unwrap(data);
   },
 
+  /** Always succeeds with `{ ok: true }` when valid email shape (no user enumeration). */
+  async forgotPassword(body: { email: string }) {
+    const { data } = await rawApi.post<Ok<{ ok: boolean }>>("/auth/forgot-password", body);
+    return unwrap(data);
+  },
+
+  /** Applies reset token; clears auth cookies on the API response. Sign in again after. */
+  async resetPassword(body: { token: string; password: string }) {
+    const { data } = await rawApi.post<Ok<{ ok: boolean }>>("/auth/reset-password", body);
+    return unwrap(data);
+  },
+
   async listAssets() {
     const { data } = await rawApi.get<Ok<Asset[]>>("/assets");
     return unwrap(data);

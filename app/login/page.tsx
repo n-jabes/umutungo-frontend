@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { Eye, EyeOff, Loader2, Lock, Mail, Phone } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
@@ -16,9 +16,10 @@ import {
   rwandaPhoneErrorMessage,
 } from "@/lib/phone";
 
-export default function LoginPage() {
+function LoginContent() {
   const { login, user, ready } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<"email" | "phone">("email");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -27,6 +28,11 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [phoneHint, setPhoneHint] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [resetBanner, setResetBanner] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("reset") === "1") setResetBanner(true);
+  }, [searchParams]);
 
   useEffect(() => {
     if (ready && user) router.replace("/dashboard");
@@ -101,6 +107,11 @@ export default function LoginPage() {
             <p className="text-sm text-muted">Access your Umutungo workspace.</p>
           </CardHeader>
           <CardContent className="p-6">
+            {resetBanner ? (
+              <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-100">
+                Your password was updated. Sign in with your new password.
+              </p>
+            ) : null}
             <div className="mb-6 flex rounded-lg border border-border bg-muted-bg/40 p-1 text-xs font-medium">
               <button
                 type="button"
@@ -195,6 +206,13 @@ export default function LoginPage() {
                     )}
                   </button>
                 </div>
+                {mode === "email" ? (
+                  <p className="mt-2 text-right text-xs">
+                    <Link href="/forgot-password" className="font-medium text-main-blue hover:underline">
+                      Forgot password?
+                    </Link>
+                  </p>
+                ) : null}
               </div>
               {error ? <p className="text-sm text-red-600">{error}</p> : null}
               <Button type="submit" className="w-full" disabled={pending}>
@@ -221,5 +239,19 @@ export default function LoginPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-background">
+          <Loader2 className="h-8 w-8 animate-spin text-main-blue" strokeWidth={1.75} />
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }
