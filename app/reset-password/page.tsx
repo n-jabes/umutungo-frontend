@@ -3,12 +3,32 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Eye, EyeOff, Loader2, Lock } from "lucide-react";
+import { Check, Eye, EyeOff, Loader2, Lock } from "lucide-react";
 import { Logo } from "@/components/brand/Logo";
 import { LegalFooterInline } from "@/components/legal/legal-footer-inline";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api, clearSessionTokens, getErrorMessage } from "@/lib/api";
+
+const PASSWORD_MIN = 8;
+const PASSWORD_MAX = 128;
+
+function RuleRow({ met, label }: { met: boolean; label: string }) {
+  return (
+    <li
+      className={`flex items-center gap-2 ${
+        met ? "text-emerald-700 dark:text-emerald-400" : "text-muted"
+      }`}
+    >
+      {met ? (
+        <Check className="h-3.5 w-3.5 shrink-0" strokeWidth={2.5} aria-hidden />
+      ) : (
+        <span className="inline-block h-3.5 w-3.5 shrink-0 rounded-full border border-border" aria-hidden />
+      )}
+      <span>{label}</span>
+    </li>
+  );
+}
 
 function ResetPasswordInner() {
   const router = useRouter();
@@ -20,6 +40,16 @@ function ResetPasswordInner() {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
+  const lenOk = password.length >= PASSWORD_MIN;
+  const maxOk = password.length <= PASSWORD_MAX;
+  const hasLower = /[a-z]/.test(password);
+  const hasUpper = /[A-Z]/.test(password);
+  const hasDigit = /\d/.test(password);
+  /** Non-alphanumeric = symbol / punctuation (recommendation only; server does not require it). */
+  const hasSpecial = /[^A-Za-z0-9]/.test(password);
+  const matchOk = confirm.length > 0 && password === confirm;
+  const matchMismatch = confirm.length > 0 && password !== confirm;
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -27,8 +57,12 @@ function ResetPasswordInner() {
       setError("This page needs a link from your email.");
       return;
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    if (password.length < PASSWORD_MIN) {
+      setError(`Password must be at least ${PASSWORD_MIN} characters.`);
+      return;
+    }
+    if (password.length > PASSWORD_MAX) {
+      setError(`Password must be at most ${PASSWORD_MAX} characters.`);
       return;
     }
     if (password !== confirm) {
@@ -82,7 +116,8 @@ function ResetPasswordInner() {
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
                       required
-                      minLength={8}
+                      minLength={PASSWORD_MIN}
+                      maxLength={PASSWORD_MAX}
                       className="w-full rounded-lg border border-border bg-background py-2.5 pl-10 pr-11 text-sm outline-none ring-main-blue/30 focus:ring-2"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -100,6 +135,21 @@ function ResetPasswordInner() {
                       )}
                     </button>
                   </div>
+                  <ul
+                    className="mt-2 space-y-1.5 text-xs"
+                    aria-label="Password requirements"
+                  >
+                    <RuleRow met={lenOk} label={`At least ${PASSWORD_MIN} characters`} />
+                    <RuleRow met={maxOk} label={`At most ${PASSWORD_MAX} characters`} />
+                    <RuleRow met={hasLower} label="One lowercase letter" />
+                    <RuleRow met={hasUpper} label="One uppercase letter" />
+                    <RuleRow met={hasDigit} label="One number" />
+                    <RuleRow met={hasSpecial} label="One special character (!@#…)" />
+                  </ul>
+                  <p className="mt-2 text-[11px] leading-relaxed text-muted">
+                    Mixed case, numbers, and symbols improve security. The server only requires length{" "}
+                    {PASSWORD_MIN}–{PASSWORD_MAX} characters.
+                  </p>
                 </div>
                 <div>
                   <label className="text-xs font-medium text-muted">Confirm password</label>
@@ -109,12 +159,19 @@ function ResetPasswordInner() {
                       type={showPassword ? "text" : "password"}
                       autoComplete="new-password"
                       required
-                      minLength={8}
+                      minLength={PASSWORD_MIN}
+                      maxLength={PASSWORD_MAX}
                       className="w-full rounded-lg border border-border bg-background py-2.5 pl-10 pr-3 text-sm outline-none ring-main-blue/30 focus:ring-2"
                       value={confirm}
                       onChange={(e) => setConfirm(e.target.value)}
                     />
                   </div>
+                  <ul className="mt-2 space-y-1.5 text-xs" aria-label="Confirm password status">
+                    <RuleRow met={matchOk} label="Matches new password" />
+                  </ul>
+                  {matchMismatch ? (
+                    <p className="mt-1.5 text-xs text-red-600">Passwords do not match yet.</p>
+                  ) : null}
                 </div>
                 {error ? <p className="text-sm text-red-600">{error}</p> : null}
                 <Button type="submit" className="w-full" disabled={pending}>
