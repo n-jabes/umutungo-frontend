@@ -4,9 +4,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { isAxiosError } from "axios";
 import { Toaster } from "sonner";
 import { useState } from "react";
+import "@/lib/api-auth-interceptor";
 import { AuthProvider } from "@/contexts/auth-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import "@/lib/api-auth-interceptor";
 
 function isUnauthorized(error: unknown) {
   return isAxiosError(error) && error.response?.status === 401;

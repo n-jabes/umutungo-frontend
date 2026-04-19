@@ -8,6 +8,7 @@ import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { AuditTrailPanel } from "@/components/settings/audit-trail-panel";
 import { PlanUsagePanel } from "@/components/settings/plan-usage-panel";
+import { ProfileAccountPanel } from "@/components/settings/profile-account-panel";
 import { SettingsTabs, type SettingsTabItem } from "@/components/settings/settings-tabs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -16,14 +17,14 @@ import { api, getErrorMessage } from "@/lib/api";
 import { cannotCreateAgentDueToAgents } from "@/lib/plan-usage";
 import { queryKeys } from "@/lib/query-keys";
 
-type SettingsTab = "plan" | "agents" | "audit" | "users";
+type SettingsTab = "profile" | "plan" | "agents" | "audit" | "users";
 
 export function SettingsPageClient() {
   const { user } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const qc = useQueryClient();
-  const [tab, setTab] = useState<SettingsTab>("agents");
+  const [tab, setTab] = useState<SettingsTab>("profile");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -38,7 +39,7 @@ export function SettingsPageClient() {
   const showPlanTab = user?.role === "owner" || user?.role === "agent";
 
   const tabItems = useMemo((): SettingsTabItem[] => {
-    const items: SettingsTabItem[] = [];
+    const items: SettingsTabItem[] = [{ id: "profile", label: "Profile" }];
     if (showPlanTab) items.push({ id: "plan", label: "Plan & usage" });
     items.push({ id: "agents", label: "Agents" }, { id: "audit", label: "Audit trail" });
     if (isAdmin) items.push({ id: "users", label: "Users" });
@@ -51,16 +52,23 @@ export function SettingsPageClient() {
     else if (t === "audit") setTab("audit");
     else if (t === "users" && isAdmin) setTab("users");
     else if (t === "agents") setTab("agents");
+    else if (t === "profile") setTab("profile");
+    else setTab("profile");
   }, [searchParams, isAdmin, showPlanTab]);
 
   useEffect(() => {
-    if (tab === "users" && !isAdmin) setTab("agents");
-    if (tab === "plan" && !showPlanTab) setTab("agents");
+    if (tab === "users" && !isAdmin) setTab("profile");
+    if (tab === "plan" && !showPlanTab) setTab("profile");
   }, [tab, isAdmin, showPlanTab]);
 
   function setTabAndRoute(next: SettingsTab) {
     setTab(next);
-    const path = next === "agents" ? "/settings" : `/settings?tab=${encodeURIComponent(next)}`;
+    const path =
+      next === "agents"
+        ? "/settings"
+        : next === "profile"
+          ? "/settings?tab=profile"
+          : `/settings?tab=${encodeURIComponent(next)}`;
     router.replace(path, { scroll: false });
   }
 
@@ -197,6 +205,9 @@ export function SettingsPageClient() {
             Plan limits for your organization and what you can manage from an agent account.
           </p>
         </header>
+        <Card className="border-border p-6 shadow-sm">
+          <ProfileAccountPanel role="agent" />
+        </Card>
         <Card className="overflow-hidden border-border shadow-sm">
           <div className="border-b border-border bg-card px-6 py-4">
             <h2 className="text-sm font-semibold text-foreground">Plan & usage</h2>
@@ -242,6 +253,12 @@ export function SettingsPageClient() {
           onChange={(id) => setTabAndRoute(id as SettingsTab)}
         />
         <div className="border-t border-border bg-card px-6 py-8">
+          {tab === "profile" ? (
+            <div id="settings-panel-profile" role="tabpanel" aria-labelledby="settings-tab-profile">
+              <ProfileAccountPanel role={isAdmin ? "admin" : "owner"} />
+            </div>
+          ) : null}
+
           {tab === "plan" && showPlanTab ? (
             <div id="settings-panel-plan" role="tabpanel" aria-labelledby="settings-tab-plan">
               <PlanUsagePanel variant="owner" />

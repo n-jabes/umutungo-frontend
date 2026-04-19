@@ -93,8 +93,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logout = useCallback(async () => {
-    await api.logout();
-    setUser(null);
+    try {
+      await api.logout();
+    } finally {
+      setUser(null);
+    }
   }, []);
 
   const setupPassword = useCallback(async (body: { token: string; password: string }) => {

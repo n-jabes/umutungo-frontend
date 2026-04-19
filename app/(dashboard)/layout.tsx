@@ -18,7 +18,7 @@ export default function DashboardGroupLayout({
   const router = useRouter();
 
   useEffect(() => {
-    if (ready && !user) router.replace("/login");
+    if (ready && !user) router.replace("/");
   }, [ready, user, router]);
 
   useEffect(() => {
