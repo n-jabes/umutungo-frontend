@@ -33,12 +33,13 @@ export function LegalDocLayout({
         <p className="mt-2 text-sm text-muted">
           Last updated: 18 April 2026 · Legal bundle <span className="font-mono">{CURRENT_LEGAL_BUNDLE_VERSION}</span>
         </p>
-        <aside className="mt-6 rounded-xl border border-amber-200/80 bg-amber-50/90 px-4 py-3 text-sm leading-relaxed text-amber-950 dark:border-amber-900/40 dark:bg-amber-950/25 dark:text-amber-50">
-          <p className="font-medium text-foreground">Important</p>
-          <p className="mt-1 text-xs opacity-95">
-            This text describes how the Umutungo product is intended to work today. It is <strong>not</strong> personal
-            legal advice. Have a qualified attorney review these documents for Rwanda or any other jurisdiction before
-            you rely on them for high-stakes decisions.
+        <aside className="mt-6 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950 shadow-sm dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">
+          <p className="font-semibold text-amber-950 dark:text-amber-50">Important</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-amber-950 dark:text-amber-100">
+            This text describes how the Umutungo product is intended to work today. It is{" "}
+            <strong className="font-semibold text-amber-950 dark:text-amber-50">not</strong> personal legal advice. Have
+            a qualified attorney review these documents for Rwanda or any other jurisdiction before you rely on them
+            for high-stakes decisions.
           </p>
         </aside>
         <div className="mt-10 space-y-8 text-sm leading-relaxed text-foreground">{children}</div>

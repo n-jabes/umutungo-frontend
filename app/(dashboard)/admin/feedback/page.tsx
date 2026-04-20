@@ -7,6 +7,7 @@ import { PlatformAccessGuard } from "@/components/platform/platform-access-guard
 import { PlatformAdminGuard } from "@/components/platform/platform-admin-guard";
 import { PlatformPageShell } from "@/components/platform/platform-page-shell";
 import { FeedbackStatusBadge } from "@/components/feedback/feedback-status-badge";
+import { feedbackSeverityPillClass, feedbackTypePillClass } from "@/components/feedback/feedback-pill-styles";
 import { Button, buttonClassName } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
@@ -181,11 +182,9 @@ export default function AdminFeedbackPage() {
           {selected ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                <span className="rounded-full bg-muted-bg px-2 py-0.5 capitalize text-foreground">{selected.type}</span>
+                <span className={feedbackTypePillClass}>{selected.type}</span>
                 {selected.severity ? (
-                  <span className="rounded-full bg-amber-100 px-2 py-0.5 capitalize text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
-                    {selected.severity}
-                  </span>
+                  <span className={feedbackSeverityPillClass(selected.severity)}>{selected.severity}</span>
                 ) : null}
                 <FeedbackStatusBadge status={selected.status} />
               </div>
