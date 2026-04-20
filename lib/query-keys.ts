@@ -4,6 +4,7 @@ const onboardingRoot = ["auth", "me", "onboarding"] as const;
 export const queryKeys = {
   /** `GET /public/pricing-plans` — published catalog for marketing & signup (no auth). */
   publicPricingPlans: ["public", "pricing-plans"] as const,
+  publicPlatformSettings: ["public", "platform-settings"] as const,
   me: ["me"] as const,
   /** `GET /me/entitlements` — plan, features, usage (owner/agent). */
   entitlements: ["me", "entitlements"] as const,
@@ -56,12 +57,15 @@ export const queryKeys = {
   platformPlanCompare: (keysCsv: string) => ["platform", "plans", "compare", keysCsv] as const,
   platformFeatures: ["platform", "features"] as const,
   platformDashboard: ["platform", "dashboard", "summary"] as const,
+  platformSettings: ["platform", "settings"] as const,
   platformAdminAudit: (params: {
     page: number;
     pageSize: number;
     action: string;
     entityType: string;
     actorRole: "" | "owner" | "admin" | "agent";
+    from: string;
+    to: string;
   }) =>
     [
       "platform",
@@ -71,6 +75,8 @@ export const queryKeys = {
       params.action,
       params.entityType,
       params.actorRole,
+      params.from,
+      params.to,
     ] as const,
   platformSubscriptions: (params: {
     page: number;
@@ -91,4 +97,47 @@ export const queryKeys = {
   platformSubscriptionAccounts: (params: { page: number; pageSize: number; q: string }) =>
     ["platform", "subscription-accounts", params.page, params.pageSize, params.q] as const,
   platformSubscriptionDetail: (ownerId: string) => ["platform", "subscriptions", ownerId] as const,
+  /** `GET /admin/users` — paginated / filtered directory */
+  platformAdminUsers: (params: {
+    page: number;
+    pageSize: number;
+    q: string;
+    role: "" | "owner" | "admin" | "agent";
+    sort: string;
+    sortDir: "asc" | "desc";
+  }) =>
+    [
+      "platform",
+      "admin",
+      "users",
+      params.page,
+      params.pageSize,
+      params.q,
+      params.role,
+      params.sort,
+      params.sortDir,
+    ] as const,
+  /** Owner rows for admin create-agent picker (short list). */
+  platformAdminOwnerPicker: ["platform", "admin", "users", "owner-picker"] as const,
+  settingsAudit: (params: {
+    page: number;
+    pageSize: number;
+    action: string;
+    entityType: string;
+    actorRole: "" | "owner" | "admin" | "agent";
+    from: string;
+    to: string;
+  }) =>
+    [
+      "audit",
+      "logs",
+      "settings",
+      params.page,
+      params.pageSize,
+      params.action,
+      params.entityType,
+      params.actorRole,
+      params.from,
+      params.to,
+    ] as const,
 };

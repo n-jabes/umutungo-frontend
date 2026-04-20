@@ -22,6 +22,8 @@ export default function PlatformAuditPage() {
   const [actionFilter, setActionFilter] = useState("");
   const [entityTypeFilter, setEntityTypeFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState<"" | "owner" | "admin" | "agent">("admin");
+  const [auditDateFrom, setAuditDateFrom] = useState("");
+  const [auditDateTo, setAuditDateTo] = useState("");
 
   const listParams = useMemo(
     () => ({
@@ -30,8 +32,10 @@ export default function PlatformAuditPage() {
       action: actionFilter,
       entityType: entityTypeFilter,
       actorRole: roleFilter,
+      from: auditDateFrom,
+      to: auditDateTo,
     }),
-    [page, actionFilter, entityTypeFilter, roleFilter],
+    [page, actionFilter, entityTypeFilter, roleFilter, auditDateFrom, auditDateTo],
   );
 
   const audit = useQuery({
@@ -43,6 +47,8 @@ export default function PlatformAuditPage() {
         ...(listParams.action.trim() ? { action: listParams.action.trim() } : {}),
         ...(listParams.entityType.trim() ? { entityType: listParams.entityType.trim() } : {}),
         ...(listParams.actorRole ? { actorRole: listParams.actorRole } : {}),
+        ...(listParams.from ? { from: listParams.from } : {}),
+        ...(listParams.to ? { to: listParams.to } : {}),
       }),
     enabled: isAdmin,
   });
@@ -102,6 +108,8 @@ export default function PlatformAuditPage() {
               actionFilter={actionFilter}
               entityTypeFilter={entityTypeFilter}
               roleFilter={roleFilter}
+              dateFrom={auditDateFrom}
+              dateTo={auditDateTo}
               onActionFilter={(v) => {
                 setActionFilter(v);
                 setPage(1);
@@ -112,6 +120,14 @@ export default function PlatformAuditPage() {
               }}
               onRoleFilter={(v) => {
                 setRoleFilter(v);
+                setPage(1);
+              }}
+              onDateFromChange={(v) => {
+                setAuditDateFrom(v);
+                setPage(1);
+              }}
+              onDateToChange={(v) => {
+                setAuditDateTo(v);
                 setPage(1);
               }}
               onPageChange={setPage}

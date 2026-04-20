@@ -5,6 +5,12 @@ import { ChevronDown, ChevronRight, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import {
+  AUDIT_ACTION_GROUPS,
+  AUDIT_ACTION_SUGGESTIONS,
+  AUDIT_ENTITY_TYPE_OPTIONS,
+  AUDIT_ENTITY_TYPE_VALUES,
+} from "@/lib/audit-filter-reference";
 import type { AuditLogEntry } from "@/lib/types";
 
 function formatWhen(iso: string) {
@@ -74,6 +80,23 @@ function CopyIconButton({
       <Copy className="h-3.5 w-3.5" />
     </Button>
   );
+}
+
+function auditPageButtonSequence(current: number, totalPages: number): (number | "gap")[] {
+  if (totalPages <= 9) {
+    return Array.from({ length: totalPages }, (_, i) => i + 1);
+  }
+  const want = new Set<number>([1, totalPages, current]);
+  for (let d = -2; d <= 2; d++) want.add(current + d);
+  const nums = [...want].filter((n) => n >= 1 && n <= totalPages).sort((a, b) => a - b);
+  const seq: (number | "gap")[] = [];
+  let prev = 0;
+  for (const n of nums) {
+    if (prev && n - prev > 1) seq.push("gap");
+    seq.push(n);
+    prev = n;
+  }
+  return seq;
 }
 
 function AuditEntryRow({ entry }: { entry: AuditLogEntry }) {
@@ -198,9 +221,13 @@ export function AuditTrailPanel({
   actionFilter,
   entityTypeFilter,
   roleFilter,
+  dateFrom,
+  dateTo,
   onActionFilter,
   onEntityTypeFilter,
   onRoleFilter,
+  onDateFromChange,
+  onDateToChange,
   onPageChange,
   title = "Audit trail",
   intro = "Immutable log of actions across your organization. Request context (IP, correlation ID, browser hint) is captured when supported by the API for investigations and support.",
@@ -213,9 +240,14 @@ export function AuditTrailPanel({
   actionFilter: string;
   entityTypeFilter: string;
   roleFilter: "" | "owner" | "admin" | "agent";
+  /** `YYYY-MM-DD` or empty when not filtering. */
+  dateFrom: string;
+  dateTo: string;
   onActionFilter: (v: string) => void;
   onEntityTypeFilter: (v: string) => void;
   onRoleFilter: (v: "" | "owner" | "admin" | "agent") => void;
+  onDateFromChange: (v: string) => void;
+  onDateToChange: (v: string) => void;
   onPageChange: (p: number) => void;
   title?: string;
   intro?: string;
@@ -229,37 +261,61 @@ export function AuditTrailPanel({
         <p className="mt-1 max-w-2xl text-sm text-muted">{intro}</p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-1.5">
-          <label htmlFor="audit-filter-action" className="text-xs font-medium text-muted">
-            Action contains
+          <label htmlFor="audit-filter-action" className="text-xs font-medium text-foreground">
+            Action
           </label>
+          <p className="text-[11px] leading-snug text-muted">
+            Partial match, case-insensitive. Type a fragment (e.g. <span className="font-mono">payment</span>,{" "}
+            <span className="font-mono">auth</span>, <span className="font-mono">platform.subscription</span>) or pick a
+            full name from suggestions.
+          </p>
           <input
             id="audit-filter-action"
+            list="audit-datalist-actions"
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none ring-main-blue/20 transition-shadow focus:ring-2"
-            placeholder="e.g. payment"
+            placeholder="e.g. payment or auth.login"
             value={actionFilter}
             onChange={(e) => onActionFilter(e.target.value)}
             autoComplete="off"
           />
+          <datalist id="audit-datalist-actions">
+            {AUDIT_ACTION_SUGGESTIONS.map((a) => (
+              <option key={a} value={a} />
+            ))}
+          </datalist>
         </div>
         <div className="space-y-1.5">
-          <label htmlFor="audit-filter-entity" className="text-xs font-medium text-muted">
+          <label htmlFor="audit-filter-entity" className="text-xs font-medium text-foreground">
             Entity type
           </label>
+          <p className="text-[11px] leading-snug text-muted">
+            Must match the catalog name stored on the row (whole value, case-insensitive). Use the list or the table’s
+            Entity line as a guide — e.g. <span className="font-mono">Payment</span>, not “payments”.
+          </p>
           <input
             id="audit-filter-entity"
+            list="audit-datalist-entity-types"
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none ring-main-blue/20 transition-shadow focus:ring-2"
-            placeholder="e.g. Asset"
+            placeholder="e.g. Lease"
             value={entityTypeFilter}
             onChange={(e) => onEntityTypeFilter(e.target.value)}
             autoComplete="off"
           />
+          <datalist id="audit-datalist-entity-types">
+            {AUDIT_ENTITY_TYPE_VALUES.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
         </div>
         <div className="space-y-1.5">
-          <label htmlFor="audit-filter-role" className="text-xs font-medium text-muted">
+          <label htmlFor="audit-filter-role" className="text-xs font-medium text-foreground">
             Actor role
           </label>
+          <p className="text-[11px] leading-snug text-muted">
+            Restrict to entries where the acting user had this role when the event was recorded.
+          </p>
           <select
             id="audit-filter-role"
             className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none ring-main-blue/20 transition-shadow focus:ring-2"
@@ -273,6 +329,90 @@ export function AuditTrailPanel({
           </select>
         </div>
       </div>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-1.5">
+          <label htmlFor="audit-filter-from" className="text-xs font-medium text-foreground">
+            From date
+          </label>
+          <p className="text-[11px] leading-snug text-muted">Inclusive start (UTC calendar day).</p>
+          <input
+            id="audit-filter-from"
+            type="date"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none ring-main-blue/20 transition-shadow focus:ring-2"
+            value={dateFrom}
+            onChange={(e) => onDateFromChange(e.target.value)}
+          />
+        </div>
+        <div className="space-y-1.5">
+          <label htmlFor="audit-filter-to" className="text-xs font-medium text-foreground">
+            To date
+          </label>
+          <p className="text-[11px] leading-snug text-muted">Inclusive end (UTC calendar day).</p>
+          <input
+            id="audit-filter-to"
+            type="date"
+            className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none ring-main-blue/20 transition-shadow focus:ring-2"
+            value={dateTo}
+            onChange={(e) => onDateToChange(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-col justify-end gap-1 sm:col-span-2 lg:col-span-2">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            className="w-fit"
+            disabled={!dateFrom && !dateTo}
+            onClick={() => {
+              onDateFromChange("");
+              onDateToChange("");
+            }}
+          >
+            Clear date range
+          </Button>
+          <p className="text-[11px] text-muted">
+            Leave both empty to search all time. Use with other filters to narrow long histories.
+          </p>
+        </div>
+      </div>
+
+      <details className="rounded-lg border border-border bg-muted-bg/30 px-4 py-3 text-sm">
+        <summary className="cursor-pointer font-medium text-foreground outline-none ring-main-blue/20 focus-visible:ring-2">
+          Browse typical action names
+        </summary>
+        <p className="mt-2 text-xs text-muted">
+          These are the main strings written by the API today. Your project may log more over time — use the action
+          column in the table as the source of truth for new values.
+        </p>
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          {AUDIT_ACTION_GROUPS.map((group) => (
+            <div key={group.title}>
+              <p className="text-xs font-semibold text-foreground">{group.title}</p>
+              <ul className="mt-1.5 space-y-0.5 font-mono text-[11px] leading-relaxed text-muted">
+                {group.actions.map((a) => (
+                  <li key={a}>{a}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </details>
+
+      <details className="rounded-lg border border-border bg-muted-bg/30 px-4 py-3 text-sm">
+        <summary className="cursor-pointer font-medium text-foreground outline-none ring-main-blue/20 focus-visible:ring-2">
+          Entity types (what “Entity” in each row refers to)
+        </summary>
+        <ul className="mt-3 space-y-2 text-xs text-muted">
+          {AUDIT_ENTITY_TYPE_OPTIONS.map((row) => (
+            <li key={row.type}>
+              <span className="font-mono font-medium text-foreground">{row.type}</span>
+              <span className="mx-1.5 text-border">—</span>
+              {row.about}
+            </li>
+          ))}
+        </ul>
+      </details>
 
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         {isLoading ? (
@@ -295,17 +435,40 @@ export function AuditTrailPanel({
         )}
       </div>
 
-      <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 border-t border-border pt-4">
         <p className="text-xs text-muted tabular-nums-fin">
-          Showing page <span className="font-medium text-foreground">{page}</span> of{" "}
+          Page <span className="font-medium text-foreground">{page}</span> of{" "}
           <span className="font-medium text-foreground">{totalPages}</span>
           <span className="mx-1.5">·</span>
-          <span className="font-medium text-foreground">{total}</span> total entries
+          <span className="font-medium text-foreground">{total}</span> matching entries
+          <span className="mx-1.5">·</span>
+          {pageSize} per page
         </p>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-1">
+          <Button type="button" variant="secondary" size="sm" onClick={() => onPageChange(1)} disabled={page <= 1}>
+            First
+          </Button>
           <Button type="button" variant="secondary" size="sm" onClick={() => onPageChange(page - 1)} disabled={page <= 1}>
             Previous
           </Button>
+          {auditPageButtonSequence(page, totalPages).map((entry, idx) =>
+            entry === "gap" ? (
+              <span key={`gap-${idx}`} className="px-1 text-xs text-muted">
+                …
+              </span>
+            ) : (
+              <Button
+                key={entry}
+                type="button"
+                variant={entry === page ? "primary" : "secondary"}
+                size="sm"
+                className="min-w-9 px-2"
+                onClick={() => onPageChange(entry)}
+              >
+                {entry}
+              </Button>
+            ),
+          )}
           <Button
             type="button"
             variant="secondary"
@@ -314,6 +477,15 @@ export function AuditTrailPanel({
             disabled={page >= totalPages}
           >
             Next
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => onPageChange(totalPages)}
+            disabled={page >= totalPages}
+          >
+            Last
           </Button>
         </div>
       </div>

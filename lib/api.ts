@@ -35,7 +35,10 @@ import type {
   SubscriptionOwnerAccountsResponse,
   SubscriptionAdminDetail,
   AgentCreateResult,
+  AdminUserCreateResult,
   PaginatedAuditLogs,
+  AdminUserSortField,
+  PaginatedUsers,
   PaymentProof,
   PaymentDetail,
   OwnerRiskSummary,
@@ -44,6 +47,7 @@ import type {
   ManagerReportingQualityPage,
   RiskDrillDownPage,
   ApiErrorPayload,
+  PlatformSettings,
 } from "./types";
 
 export function getAccessToken(): string | null {
@@ -149,6 +153,11 @@ export const api = {
     return unwrap(data);
   },
 
+  async getPublicPlatformSettings() {
+    const { data } = await rawApi.get<Ok<PlatformSettings>>("/public/platform-settings");
+    return unwrap(data);
+  },
+
   async login(body: { email?: string; phone?: string; password: string }) {
     const { data } = await rawApi.post<Ok<{ user: UserPublic; accessToken: string; refreshToken: string }>>(
       "/auth/login",
@@ -215,6 +224,16 @@ export const api = {
 
   async getPlatformDashboardSummary() {
     const { data } = await rawApi.get<Ok<PlatformDashboardSummary>>("/platform/dashboard/summary");
+    return unwrap(data);
+  },
+
+  async getPlatformSettings() {
+    const { data } = await rawApi.get<Ok<PlatformSettings>>("/platform/settings");
+    return unwrap(data);
+  },
+
+  async updatePlatformSettings(body: { selfRegistrationEnabled: boolean }) {
+    const { data } = await rawApi.patch<Ok<PlatformSettings>>("/platform/settings", body);
     return unwrap(data);
   },
 
@@ -454,20 +473,44 @@ export const api = {
     return unwrap(data);
   },
 
-  async listUsers() {
-    const { data } = await rawApi.get<Ok<UserPublic[]>>("/admin/users");
+  async listUsers(params?: {
+    page?: number;
+    pageSize?: number;
+    q?: string;
+    role?: "owner" | "admin" | "agent";
+    sort?: AdminUserSortField;
+    sortDir?: "asc" | "desc";
+  }) {
+    const { data } = await rawApi.get<Ok<PaginatedUsers>>("/admin/users", {
+      params: {
+        page: params?.page,
+        pageSize: params?.pageSize,
+        ...(params?.q?.trim() ? { q: params.q.trim() } : {}),
+        ...(params?.role ? { role: params.role } : {}),
+        ...(params?.sort ? { sort: params.sort } : {}),
+        ...(params?.sortDir ? { sortDir: params.sortDir } : {}),
+      },
+    });
     return unwrap(data);
   },
 
   async createUser(body: {
     name: string;
-    password: string;
+    password?: string;
     role?: "owner" | "admin" | "agent";
     email?: string;
     phone?: string;
     managedByOwnerId?: string | null;
+    planKey?: string;
   }) {
-    const { data } = await rawApi.post<Ok<UserPublic>>("/admin/users", body);
+    const { data } = await rawApi.post<Ok<AdminUserCreateResult>>("/admin/users", body);
+    return unwrap(data);
+  },
+
+  async reissueUserSetupToken(id: string) {
+    const { data } = await rawApi.post<Ok<{ setupToken: string; setupTokenExpiresAt: string }>>(
+      `/admin/users/${id}/setup-token`,
+    );
     return unwrap(data);
   },
 
@@ -497,8 +540,22 @@ export const api = {
     action?: string;
     entityType?: string;
     actorRole?: "owner" | "admin" | "agent";
+    /** `YYYY-MM-DD` or ISO datetime; inclusive start of range. */
+    from?: string;
+    /** `YYYY-MM-DD` or ISO datetime; inclusive end of range. */
+    to?: string;
   }) {
-    const { data } = await rawApi.get<Ok<PaginatedAuditLogs>>("/audit/logs", { params });
+    const { data } = await rawApi.get<Ok<PaginatedAuditLogs>>("/audit/logs", {
+      params: {
+        page: params?.page,
+        pageSize: params?.pageSize,
+        ...(params?.action?.trim() ? { action: params.action.trim() } : {}),
+        ...(params?.entityType?.trim() ? { entityType: params.entityType.trim() } : {}),
+        ...(params?.actorRole ? { actorRole: params.actorRole } : {}),
+        ...(params?.from?.trim() ? { from: params.from.trim() } : {}),
+        ...(params?.to?.trim() ? { to: params.to.trim() } : {}),
+      },
+    });
     return unwrap(data);
   },
 

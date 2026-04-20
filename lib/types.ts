@@ -281,6 +281,10 @@ export type PublicPricingPlansResponse = {
   plans: PublicPricingPlanRow[];
 };
 
+export type PlatformSettings = {
+  selfRegistrationEnabled: boolean;
+};
+
 export type AuditLogEntry = {
   id: string;
   userId: string | null;
@@ -308,10 +312,34 @@ export type PaginatedAuditLogs = {
   total: number;
 };
 
+/** `GET /admin/users` — paginated directory. */
+export type PaginatedUsers = {
+  items: UserPublic[];
+  page: number;
+  pageSize: number;
+  total: number;
+};
+
+export type AdminUserSortField =
+  | "createdAt"
+  | "name"
+  | "email"
+  | "phone"
+  | "role"
+  | "emailVerifiedAt"
+  | "mustSetPassword";
+
 export type AgentCreateResult = {
   agent: UserPublic;
   setupToken: string;
   setupTokenExpiresAt: string;
+};
+
+/** `POST /admin/users` — password optional; when omitted, `setupToken` is returned like agent invite. */
+export type AdminUserCreateResult = {
+  user: UserPublic;
+  setupToken?: string;
+  setupTokenExpiresAt?: string;
 };
 
 export type Asset = {

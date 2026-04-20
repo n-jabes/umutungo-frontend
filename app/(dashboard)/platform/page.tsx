@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { RefreshCw } from "lucide-react";
+import { toast } from "sonner";
 import { PlatformAccessGuard } from "@/components/platform/platform-access-guard";
 import { openPlatformCommandPalette } from "@/components/platform/platform-command-palette";
 import {
@@ -89,6 +90,23 @@ export default function PlatformOverviewPage() {
     enabled: isAdmin,
     staleTime: 45_000,
   });
+  const platformSettings = useQuery({
+    queryKey: queryKeys.platformSettings,
+    queryFn: () => api.getPlatformSettings(),
+    enabled: isAdmin,
+    staleTime: 30_000,
+  });
+  const updatePlatformSettings = useMutation({
+    mutationFn: (selfRegistrationEnabled: boolean) => api.updatePlatformSettings({ selfRegistrationEnabled }),
+    onSuccess: async () => {
+      toast.success("Platform access setting updated");
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.platformSettings }),
+        qc.invalidateQueries({ queryKey: queryKeys.publicPlatformSettings }),
+      ]);
+    },
+    onError: (err) => toast.error(getErrorMessage(err)),
+  });
 
   const adminAudit = useQuery({
     queryKey: [...queryKeys.auditLogs, "platform-overview", 1, 10] as const,
@@ -98,7 +116,7 @@ export default function PlatformOverviewPage() {
   });
 
   const dash: PlatformDashboardSummary | undefined = summary.data;
-  const refreshing = summary.isFetching || adminAudit.isFetching;
+  const refreshing = summary.isFetching || adminAudit.isFetching || platformSettings.isFetching;
 
   async function refresh() {
     await Promise.all([
@@ -325,6 +343,50 @@ export default function PlatformOverviewPage() {
                     </DataTableShell>
                   </div>
                 </>
+              )}
+            </PlatformSectionCard>
+
+            <PlatformSectionCard
+              title="Platform management"
+              description="Control who can create new owner accounts before billing automation is enabled."
+            >
+              {platformSettings.isLoading ? (
+                <p className="text-sm text-muted">Loading setting…</p>
+              ) : platformSettings.isError ? (
+                <p className="text-sm text-muted">{getErrorMessage(platformSettings.error)}</p>
+              ) : (
+                <div className="flex flex-col gap-3 rounded-lg border border-border bg-muted-bg/20 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Self-registration is{" "}
+                      <span
+                        className={cn(
+                          "rounded px-1.5 py-0.5 text-xs",
+                          platformSettings.data?.selfRegistrationEnabled
+                            ? "bg-main-green/15 text-main-green"
+                            : "bg-red-500/10 text-red-700",
+                        )}
+                      >
+                        {platformSettings.data?.selfRegistrationEnabled ? "enabled" : "disabled"}
+                      </span>
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      Disable this to require admin-created users only from the dashboard.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={updatePlatformSettings.isPending || !platformSettings.data}
+                    onClick={() =>
+                      updatePlatformSettings.mutate(!Boolean(platformSettings.data?.selfRegistrationEnabled))
+                    }
+                  >
+                    {platformSettings.data?.selfRegistrationEnabled
+                      ? "Disable self-registration"
+                      : "Enable self-registration"}
+                  </Button>
+                </div>
               )}
             </PlatformSectionCard>
 

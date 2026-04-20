@@ -69,6 +69,14 @@ export function ProfileAccountPanel({ role }: { role: ProfileRole }) {
       await refreshUser();
       await qc.invalidateQueries({ queryKey: queryKeys.users });
       await qc.invalidateQueries({ queryKey: queryKeys.agents });
+      if (role === "admin") {
+        await qc.invalidateQueries({
+          predicate: (q) => {
+            const k = q.queryKey as string[];
+            return k[0] === "platform" && k[1] === "admin" && k[2] === "users";
+          },
+        });
+      }
       setName(updated.name ?? "");
       setEmail(updated.email ?? "");
       setPhone(updated.phone ?? "");

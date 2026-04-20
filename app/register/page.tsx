@@ -54,12 +54,18 @@ function RegisterFlow() {
     queryFn: () => api.getPublicPricingPlans(),
     staleTime: 5 * 60_000,
   });
+  const platformSettingsQuery = useQuery({
+    queryKey: queryKeys.publicPlatformSettings,
+    queryFn: () => api.getPublicPlatformSettings(),
+    staleTime: 5 * 60_000,
+  });
 
   const plans = useMemo(() => plansQuery.data?.plans ?? [], [plansQuery.data]);
   const selectedPlan = useMemo(
     () => (selectedPlanKey ? plans.find((p) => p.planKey === selectedPlanKey) ?? null : null),
     [plans, selectedPlanKey],
   );
+  const selfRegistrationEnabled = platformSettingsQuery.data?.selfRegistrationEnabled ?? true;
 
   useEffect(() => {
     if (ready && user) router.replace("/dashboard");
@@ -178,9 +184,34 @@ function RegisterFlow() {
             </p>
           </CardHeader>
           <CardContent className="p-6">
-            {plansQuery.isLoading ? (
+            {platformSettingsQuery.isLoading || plansQuery.isLoading ? (
               <div className="flex justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-main-blue" strokeWidth={1.75} />
+              </div>
+            ) : platformSettingsQuery.isError ? (
+              <PricingPlansLoadError
+                error={platformSettingsQuery.error}
+                onRetry={() => platformSettingsQuery.refetch()}
+                retrying={platformSettingsQuery.isFetching}
+                align="start"
+              />
+            ) : !selfRegistrationEnabled ? (
+              <div className="space-y-4">
+                <p className="text-sm text-foreground">
+                  New account self-registration is currently disabled by the platform administrator.
+                </p>
+                <p className="text-sm text-muted">
+                  To get access, ask an admin to create your account from the dashboard, then use the setup link they
+                  share with you.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Link href="/login">
+                    <Button type="button">Go to sign in</Button>
+                  </Link>
+                  <Link href="/" className="text-sm font-medium text-muted hover:text-foreground">
+                    ← Back to home
+                  </Link>
+                </div>
               </div>
             ) : plansQuery.isError ? (
               <PricingPlansLoadError

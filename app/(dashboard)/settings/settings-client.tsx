@@ -17,7 +17,7 @@ import { api, getErrorMessage } from "@/lib/api";
 import { cannotCreateAgentDueToAgents } from "@/lib/plan-usage";
 import { queryKeys } from "@/lib/query-keys";
 
-type SettingsTab = "profile" | "plan" | "agents" | "audit" | "users";
+type SettingsTab = "profile" | "plan" | "agents" | "audit";
 
 export function SettingsPageClient() {
   const { user } = useAuth();
@@ -33,6 +33,8 @@ export function SettingsPageClient() {
   const [actionFilter, setActionFilter] = useState("");
   const [entityTypeFilter, setEntityTypeFilter] = useState("");
   const [roleFilter, setRoleFilter] = useState<"" | "owner" | "admin" | "agent">("");
+  const [auditDateFrom, setAuditDateFrom] = useState("");
+  const [auditDateTo, setAuditDateTo] = useState("");
 
   const isAdmin = user?.role === "admin";
   const canManage = user?.role === "owner" || isAdmin;
@@ -41,24 +43,24 @@ export function SettingsPageClient() {
   const tabItems = useMemo((): SettingsTabItem[] => {
     const items: SettingsTabItem[] = [{ id: "profile", label: "Profile" }];
     if (showPlanTab) items.push({ id: "plan", label: "Plan & usage" });
-    items.push({ id: "agents", label: "Agents" }, { id: "audit", label: "Audit trail" });
-    if (isAdmin) items.push({ id: "users", label: "Users" });
+    items.push({ id: "agents", label: "Agents" });
+    /** Admins use Platform → Audit & Accounts instead. */
+    if (!isAdmin) items.push({ id: "audit", label: "Audit trail" });
     return items;
   }, [isAdmin, showPlanTab]);
 
   useEffect(() => {
     const t = searchParams.get("tab");
     if (t === "plan" && showPlanTab) setTab("plan");
-    else if (t === "audit") setTab("audit");
-    else if (t === "users" && isAdmin) setTab("users");
+    else if (t === "audit" && !isAdmin) setTab("audit");
     else if (t === "agents") setTab("agents");
     else if (t === "profile") setTab("profile");
     else setTab("profile");
   }, [searchParams, isAdmin, showPlanTab]);
 
   useEffect(() => {
-    if (tab === "users" && !isAdmin) setTab("profile");
     if (tab === "plan" && !showPlanTab) setTab("profile");
+    if (tab === "audit" && isAdmin) setTab("profile");
   }, [tab, isAdmin, showPlanTab]);
 
   function setTabAndRoute(next: SettingsTab) {
@@ -87,11 +89,6 @@ export function SettingsPageClient() {
     queryFn: () => api.listAgents(),
     enabled: canManage,
   });
-  const users = useQuery({
-    queryKey: queryKeys.users,
-    queryFn: () => api.listUsers(),
-    enabled: isAdmin,
-  });
   const entitlements = useQuery({
     queryKey: queryKeys.entitlements,
     queryFn: () => api.getMeEntitlements(),
@@ -99,17 +96,32 @@ export function SettingsPageClient() {
     staleTime: 60_000,
   });
 
+  const auditListParams = useMemo(
+    () => ({
+      page: auditPage,
+      pageSize: 20,
+      action: actionFilter,
+      entityType: entityTypeFilter,
+      actorRole: roleFilter,
+      from: auditDateFrom,
+      to: auditDateTo,
+    }),
+    [auditPage, actionFilter, entityTypeFilter, roleFilter, auditDateFrom, auditDateTo],
+  );
+
   const audit = useQuery({
-    queryKey: [queryKeys.auditLogs, auditPage, actionFilter, entityTypeFilter, roleFilter],
+    queryKey: queryKeys.settingsAudit(auditListParams),
     queryFn: () =>
       api.listAuditLogs({
-        page: auditPage,
-        pageSize: 20,
-        action: actionFilter || undefined,
-        entityType: entityTypeFilter || undefined,
-        actorRole: roleFilter || undefined,
+        page: auditListParams.page,
+        pageSize: auditListParams.pageSize,
+        ...(auditListParams.action.trim() ? { action: auditListParams.action.trim() } : {}),
+        ...(auditListParams.entityType.trim() ? { entityType: auditListParams.entityType.trim() } : {}),
+        ...(auditListParams.actorRole ? { actorRole: auditListParams.actorRole } : {}),
+        ...(auditListParams.from ? { from: auditListParams.from } : {}),
+        ...(auditListParams.to ? { to: auditListParams.to } : {}),
       }),
-    enabled: canManage,
+    enabled: canManage && !isAdmin,
   });
 
   const createAgent = useMutation({
@@ -236,8 +248,25 @@ export function SettingsPageClient() {
       <header>
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">Settings</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted">
-          Configure team access, review platform users, and inspect the audit trail. Changes that affect security or
-          billing are recorded with request context where the API supports it.
+          {isAdmin ? (
+            <>
+              Configure your profile and owner-scoped agents. For the full user directory, password setup links, and
+              platform-wide audit search, use{" "}
+              <Link href="/platform/accounts" className="font-medium text-main-blue underline underline-offset-2">
+                Platform → Accounts
+              </Link>{" "}
+              and{" "}
+              <Link href="/platform/audit" className="font-medium text-main-blue underline underline-offset-2">
+                Platform → Audit
+              </Link>
+              .
+            </>
+          ) : (
+            <>
+              Configure team access and inspect the audit trail for your organization. Changes that affect security or
+              billing are recorded with request context where the API supports it.
+            </>
+          )}
         </p>
       </header>
 
@@ -399,7 +428,7 @@ export function SettingsPageClient() {
             </div>
           ) : null}
 
-          {tab === "audit" ? (
+          {tab === "audit" && !isAdmin ? (
             <div id="settings-panel-audit" role="tabpanel" aria-labelledby="settings-tab-audit">
               <AuditTrailPanel
                 items={audit.data?.items ?? []}
@@ -410,6 +439,8 @@ export function SettingsPageClient() {
                 actionFilter={actionFilter}
                 entityTypeFilter={entityTypeFilter}
                 roleFilter={roleFilter}
+                dateFrom={auditDateFrom}
+                dateTo={auditDateTo}
                 onActionFilter={(v) => {
                   setAuditPage(1);
                   setActionFilter(v);
@@ -422,38 +453,19 @@ export function SettingsPageClient() {
                   setAuditPage(1);
                   setRoleFilter(v);
                 }}
+                onDateFromChange={(v) => {
+                  setAuditDateFrom(v);
+                  setAuditPage(1);
+                }}
+                onDateToChange={(v) => {
+                  setAuditDateTo(v);
+                  setAuditPage(1);
+                }}
                 onPageChange={setAuditPage}
               />
             </div>
           ) : null}
 
-          {tab === "users" && isAdmin ? (
-            <div className="space-y-6" id="settings-panel-users" role="tabpanel" aria-labelledby="settings-tab-users">
-              <div>
-                <h2 className="text-lg font-semibold tracking-tight text-foreground">User directory</h2>
-                <p className="mt-1 max-w-2xl text-sm text-muted">
-                  Platform-wide directory of registered accounts. Use this for governance and support coordination.
-                </p>
-              </div>
-              <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-background">
-                {(users.data ?? []).map((entry) => (
-                  <li key={entry.id} className="flex items-center justify-between gap-4 px-4 py-4">
-                    <div className="min-w-0">
-                      <p className="font-medium text-foreground">{entry.name}</p>
-                      <p className="text-sm text-muted">
-                        <span className="capitalize">{entry.role}</span>
-                        <span className="mx-1.5 text-border">·</span>
-                        {entry.email ?? entry.phone ?? "No contact"}
-                      </p>
-                    </div>
-                  </li>
-                ))}
-                {!users.isLoading && (users.data?.length ?? 0) === 0 ? (
-                  <li className="px-4 py-10 text-center text-sm text-muted">No users returned.</li>
-                ) : null}
-              </ul>
-            </div>
-          ) : null}
         </div>
       </Card>
     </div>
