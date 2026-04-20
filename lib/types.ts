@@ -767,3 +767,46 @@ export type LeaseObligation = {
     unit?: { name: string | null; asset: { id: string; name: string } };
   };
 };
+
+export type FeedbackType = "bug" | "idea" | "question";
+export type FeedbackSeverity = "low" | "medium" | "high";
+export type FeedbackStatus = "new" | "triaged" | "in_progress" | "closed";
+
+export type FeedbackMetadata = Record<string, unknown> & {
+  browser?: string;
+  sentryEventId?: string | null;
+  lastAction?: string | null;
+};
+
+export type FeedbackItem = {
+  id: string;
+  userId: string;
+  role: "owner" | "admin" | "agent";
+  type: FeedbackType;
+  severity: FeedbackSeverity | null;
+  message: string;
+  screenshotUrl: string | null;
+  route: string;
+  metadata: FeedbackMetadata | null;
+  status: FeedbackStatus;
+  internalNotes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FeedbackAdminItem = FeedbackItem & {
+  user?: {
+    id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    role: "owner" | "admin" | "agent";
+  } | null;
+};
+
+export type PaginatedFeedbackAdmin = {
+  items: FeedbackAdminItem[];
+  page: number;
+  pageSize: number;
+  total: number;
+};

@@ -161,6 +161,9 @@ export default function PlatformOverviewPage() {
                 <Link href="/platform/audit" className={buttonClassName({ variant: "secondary", className: "flex-1 sm:flex-none" })}>
                   Audit
                 </Link>
+                <Link href="/admin/feedback" className={buttonClassName({ variant: "secondary", className: "flex-1 sm:flex-none" })}>
+                  Feedback
+                </Link>
               </div>
             </div>
           }

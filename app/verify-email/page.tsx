@@ -8,6 +8,7 @@ import { Logo } from "@/components/brand/Logo";
 import { buttonClassName } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api, getErrorMessage, setSessionTokens } from "@/lib/api";
+import { getDefaultAppRoute } from "@/lib/default-route";
 
 function VerifyEmailInner() {
   const router = useRouter();
@@ -31,7 +32,7 @@ function VerifyEmailInner() {
         setSessionTokens(res.accessToken, res.refreshToken);
         setStatus("done");
         setMessage("Your email is verified. Redirecting to your workspace…");
-        router.replace("/dashboard");
+        router.replace(getDefaultAppRoute(res.user.role));
       } catch (e) {
         if (cancelled) return;
         setStatus("error");

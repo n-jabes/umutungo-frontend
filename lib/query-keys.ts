@@ -140,4 +140,7 @@ export const queryKeys = {
       params.from,
       params.to,
     ] as const,
+  feedbackMine: ["feedback", "mine"] as const,
+  feedbackAdmin: (params: { page: number; pageSize: number; status: string }) =>
+    ["feedback", "admin", params.page, params.pageSize, params.status] as const,
 };

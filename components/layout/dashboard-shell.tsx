@@ -19,11 +19,12 @@ import {
   Settings,
   ScrollText,
   ShieldCheck,
+  MessageSquareText,
+  UserRound,
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Logo } from "@/components/brand/Logo";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/auth-context";
 import { type Workspace, useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
@@ -42,6 +43,7 @@ const navByWorkspace = {
     { href: "/tenants",   label: "Tenants",   icon: Users },
     { href: "/leases",    label: "Leases",    icon: FileText },
     { href: "/payments",  label: "Payments",  icon: Wallet },
+    { href: "/feedback",  label: "Feedback",  icon: MessageSquareText },
     { href: "/settings",  label: "Settings",  icon: Settings },
   ],
   portfolio: [
@@ -55,6 +57,7 @@ const navByWorkspace = {
     { href: "/platform/plans/compare", label: "Compare",       icon: GitCompareArrows },
     { href: "/platform/subscriptions", label: "Subscriptions", icon: Wallet },
     { href: "/platform/accounts",      label: "Accounts",      icon: Users },
+    { href: "/admin/feedback",         label: "Feedback",      icon: MessageSquareText },
     { href: "/platform/audit",         label: "Audit",         icon: ScrollText },
   ],
 } as const;
@@ -62,6 +65,7 @@ const navByWorkspace = {
 const platformNavForTenant = [
   { href: "/platform", label: "Overview", icon: ShieldCheck },
   { href: "/settings?tab=plan", label: "Plan & billing", icon: CreditCard },
+  { href: "/feedback", label: "Feedback", icon: MessageSquareText },
 ] as const;
 
 function isNavHrefActive(pathname: string, href: string, searchParams: ReturnType<typeof useSearchParams>) {
@@ -235,6 +239,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     if (workspace === "platform") return [...platformNavResolved];
     return navByWorkspace[workspace];
   }, [isAgent, workspace, platformNavResolved]);
+  const profileHref = "/settings?tab=profile";
 
   function handleWorkspaceSwitch(next: Workspace) {
     if (isAgent) {
@@ -261,23 +266,31 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             canUsePlatform={canUsePlatform}
             platformDescriptionOverride={user?.role !== "admin" ? "Your plan, usage & billing" : undefined}
           />
-          <div className="mt-10 flex-1">
+          <div className="mt-6 min-h-0 flex-1 overflow-y-auto pr-1">
             <NavLinks variant="sidebar" workspace={workspace} itemsOverride={navItems} />
           </div>
-          <div className="mt-auto space-y-3 border-t border-border pt-6">
-            <p className="truncate px-2 text-xs font-medium text-foreground">{user?.name}</p>
-            <p className="truncate px-2 text-[11px] text-muted">
-              {user?.email ?? user?.phone ?? "Account"}
-            </p>
-            <Button
-              type="button"
-              variant="secondary"
-              className="w-full justify-start gap-2"
-              onClick={() => void logout()}
-            >
-              <LogOut className="h-4 w-4" strokeWidth={1.75} />
-              Sign out
-            </Button>
+          <div className="mt-4 border-t border-border pt-4">
+            <div className="flex items-center gap-2 rounded-xl border border-border bg-card px-2 py-2">
+              <Link href={profileHref} className="group min-w-0 flex flex-1 items-center gap-2 rounded-lg px-1.5 py-1.5 hover:bg-muted-bg">
+                <UserRound className="h-4 w-4 shrink-0 text-muted group-hover:text-foreground" strokeWidth={1.75} />
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-medium text-foreground">{user?.name ?? "Profile"}</span>
+                  <span className="block truncate text-[11px] text-muted">{user?.email ?? user?.phone ?? "Account"}</span>
+                </span>
+              </Link>
+              <button
+                type="button"
+                className="group relative rounded-lg p-2 text-muted transition hover:bg-muted-bg hover:text-foreground"
+                aria-label="Logout"
+                title="Logout"
+                onClick={() => void logout()}
+              >
+                <LogOut className="h-4 w-4" strokeWidth={1.75} />
+                <span className="pointer-events-none absolute -top-7 right-0 hidden rounded bg-foreground px-2 py-1 text-[10px] text-background shadow-sm group-hover:block">
+                  Logout
+                </span>
+              </button>
+            </div>
           </div>
         </aside>
 
@@ -343,16 +356,21 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               <NavLinks variant="mobile-drawer" workspace={workspace} itemsOverride={navItems} onNavigate={() => setDrawer(false)} />
             </div>
             <div className="border-t border-border p-4">
-              <p className="mb-1 text-sm font-medium">{user?.name}</p>
-              <Button
-                type="button"
-                variant="secondary"
-                className="mt-3 w-full"
-                onClick={() => void logout()}
-              >
-                <LogOut className="h-4 w-4" strokeWidth={1.75} />
-                Sign out
-              </Button>
+              <div className="flex items-center justify-between gap-2">
+                <Link href={profileHref} className="min-w-0 flex-1 rounded-lg border border-border bg-muted-bg/40 px-3 py-2">
+                  <p className="truncate text-sm font-medium text-foreground">{user?.name ?? "Profile"}</p>
+                  <p className="truncate text-xs text-muted">{user?.email ?? user?.phone ?? "Account"}</p>
+                </Link>
+                <button
+                  type="button"
+                  className="rounded-lg border border-border p-2 text-muted transition hover:bg-muted-bg hover:text-foreground"
+                  aria-label="Logout"
+                  title="Logout"
+                  onClick={() => void logout()}
+                >
+                  <LogOut className="h-4 w-4" strokeWidth={1.75} />
+                </button>
+              </div>
             </div>
           </div>
         </div>

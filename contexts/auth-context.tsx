@@ -17,7 +17,7 @@ type AuthState = {
 };
 
 type AuthContextValue = AuthState & {
-  login: (emailOrPhone: { email?: string; phone?: string; password: string }) => Promise<void>;
+  login: (emailOrPhone: { email?: string; phone?: string; password: string }) => Promise<UserPublic>;
   resendEmailVerification: () => Promise<void>;
   register: (p: {
     name: string;
@@ -27,8 +27,8 @@ type AuthContextValue = AuthState & {
     planKey: string;
     termsAccepted: boolean;
     termsVersion: string;
-  }) => Promise<void>;
-  setupPassword: (p: { token: string; password: string }) => Promise<void>;
+  }) => Promise<UserPublic>;
+  setupPassword: (p: { token: string; password: string }) => Promise<UserPublic>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 };
@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await api.login(body);
       setSessionTokens(res.accessToken, res.refreshToken);
       setUser(res.user);
+      return res.user;
     },
     [],
   );
@@ -88,6 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await api.register(body);
       setSessionTokens(res.accessToken, res.refreshToken);
       setUser(res.user);
+      return res.user;
     },
     [],
   );
@@ -104,6 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const res = await api.setupPassword(body);
     setSessionTokens(res.accessToken, res.refreshToken);
     setUser(res.user);
+    return res.user;
   }, []);
 
   const value = useMemo(

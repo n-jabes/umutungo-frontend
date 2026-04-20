@@ -48,6 +48,9 @@ import type {
   RiskDrillDownPage,
   ApiErrorPayload,
   PlatformSettings,
+  FeedbackItem,
+  PaginatedFeedbackAdmin,
+  FeedbackStatus,
 } from "./types";
 
 export function getAccessToken(): string | null {
@@ -557,6 +560,55 @@ export const api = {
       },
     });
     return unwrap(data);
+  },
+
+  async submitFeedback(body: {
+    type: "bug" | "idea" | "question";
+    severity?: "low" | "medium" | "high";
+    message: string;
+    route: string;
+    metadata?: Record<string, unknown>;
+    screenshot?: File | null;
+  }) {
+    const form = new FormData();
+    form.append("type", body.type);
+    if (body.severity) form.append("severity", body.severity);
+    form.append("message", body.message);
+    form.append("route", body.route);
+    if (body.metadata) form.append("metadata", JSON.stringify(body.metadata));
+    if (body.screenshot) form.append("screenshot", body.screenshot);
+    const { data } = await rawApi.post<Ok<FeedbackItem>>("/feedback", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return unwrap(data);
+  },
+
+  async listMyFeedback() {
+    const { data } = await rawApi.get<Ok<FeedbackItem[]>>("/feedback/mine");
+    return unwrap(data);
+  },
+
+  async listAdminFeedback(params?: { page?: number; pageSize?: number; status?: FeedbackStatus }) {
+    const { data } = await rawApi.get<Ok<PaginatedFeedbackAdmin>>("/admin/feedback", {
+      params: {
+        page: params?.page ?? 1,
+        pageSize: params?.pageSize ?? 25,
+        ...(params?.status ? { status: params.status } : {}),
+      },
+    });
+    return unwrap(data);
+  },
+
+  async updateAdminFeedback(id: string, body: { status?: FeedbackStatus; internalNotes?: string }) {
+    const { data } = await rawApi.patch<Ok<FeedbackItem>>(`/admin/feedback/${id}`, body);
+    return unwrap(data);
+  },
+
+  async getFeedbackScreenshotBlob(feedbackId: string) {
+    const response = await rawApi.get(`/feedback/${feedbackId}/screenshot`, {
+      responseType: "blob",
+    });
+    return response.data as Blob;
   },
 
   async setupPassword(body: { token: string; password: string }) {

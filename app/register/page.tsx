@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { CURRENT_LEGAL_BUNDLE_VERSION } from "@/lib/legal";
 import { LegalFooterInline } from "@/components/legal/legal-footer-inline";
 import { useQuery } from "@tanstack/react-query";
+import { getDefaultAppRoute } from "@/lib/default-route";
 
 type Step = 1 | 2 | 3;
 
@@ -68,7 +69,7 @@ function RegisterFlow() {
   const selfRegistrationEnabled = platformSettingsQuery.data?.selfRegistrationEnabled ?? true;
 
   useEffect(() => {
-    if (ready && user) router.replace("/dashboard");
+    if (ready && user) router.replace(getDefaultAppRoute(user.role));
   }, [ready, user, router]);
 
   useEffect(() => {
@@ -122,7 +123,7 @@ function RegisterFlow() {
     setPending(true);
     try {
       const normalizedPhone = phone.trim() ? normalizeRwandaPhone(phone) : null;
-      await register({
+      const created = await register({
         name: name.trim(),
         password,
         email: email.trim() || undefined,
@@ -131,7 +132,7 @@ function RegisterFlow() {
         termsAccepted: true,
         termsVersion: CURRENT_LEGAL_BUNDLE_VERSION,
       });
-      router.replace("/dashboard");
+      router.replace(getDefaultAppRoute(created.role));
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

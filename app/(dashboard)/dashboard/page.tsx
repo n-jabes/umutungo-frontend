@@ -37,6 +37,7 @@ import {
 } from "@/components/dashboard/quick-dialogs";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { DashboardCursorTableFooter } from "@/components/dashboard/dashboard-table-pagination";
+import { SendFeedbackButton } from "@/components/feedback/send-feedback-button";
 import { api } from "@/lib/api";
 import { cannotCreateAssetDueToUnits } from "@/lib/plan-usage";
 import {
@@ -358,6 +359,7 @@ export default function DashboardPage() {
           <p className="mt-2 text-xs text-muted">Last updated: {formatTimeAgo(latestDataSync)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <SendFeedbackButton />
           {user?.role !== "agent" ? (
             <>
               <Button

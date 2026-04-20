@@ -11,6 +11,7 @@ import { RowActions } from "@/components/ui/row-actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
+import { SendFeedbackButton } from "@/components/feedback/send-feedback-button";
 import { api, getErrorMessage } from "@/lib/api";
 import {
   currentMonth,
@@ -413,9 +414,12 @@ function PaymentsInner() {
             covered (start–end dates) when available.
           </p>
         </div>
-        <Button type="button" className="w-full shrink-0 sm:w-auto" onClick={() => setRecordOpen(true)}>
-          Record payment
-        </Button>
+        <div className="flex w-full shrink-0 flex-wrap gap-2 sm:w-auto sm:justify-end">
+          <SendFeedbackButton />
+          <Button type="button" className="w-full sm:w-auto" onClick={() => setRecordOpen(true)}>
+            Record payment
+          </Button>
+        </div>
       </div>
 
       {leaseIdFilter ? (

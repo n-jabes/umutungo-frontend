@@ -15,6 +15,7 @@ import {
   normalizeRwandaPhone,
   rwandaPhoneErrorMessage,
 } from "@/lib/phone";
+import { getDefaultAppRoute } from "@/lib/default-route";
 
 function LoginContent() {
   const { login, user, ready } = useAuth();
@@ -35,7 +36,7 @@ function LoginContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (ready && user) router.replace("/dashboard");
+    if (ready && user) router.replace(getDefaultAppRoute(user.role));
   }, [ready, user, router]);
 
   useEffect(() => {
@@ -62,8 +63,8 @@ function LoginContent() {
       }
       setPending(true);
       try {
-        await login({ phone: normalized, password });
-        router.replace("/dashboard");
+        const loggedIn = await login({ phone: normalized, password });
+        router.replace(getDefaultAppRoute(loggedIn.role));
       } catch (err) {
         setError(getErrorMessage(err));
       } finally {
@@ -73,8 +74,8 @@ function LoginContent() {
     }
     setPending(true);
     try {
-      await login({ email: email.trim(), password });
-      router.replace("/dashboard");
+      const loggedIn = await login({ email: email.trim(), password });
+      router.replace(getDefaultAppRoute(loggedIn.role));
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

@@ -6,6 +6,7 @@ import { Building2, ChevronRight, MapPin, Plus, TrendingUp } from "lucide-react"
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { AddAssetModal, EditAssetModal } from "@/components/dashboard/quick-dialogs";
+import { SendFeedbackButton } from "@/components/feedback/send-feedback-button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RowActions } from "@/components/ui/row-actions";
 import { Card, CardContent } from "@/components/ui/card";
@@ -115,21 +116,24 @@ export default function AssetsPage() {
           investment context.
         </p>
         </div>
-        <div className="flex flex-col items-end gap-1">
-          <button
-            type="button"
-            disabled={assetCapReached}
-            title={
-              assetCapReached
-                ? "Unit limit reached for your plan (each new asset adds one unit). Open Settings → Plan & usage."
-                : undefined
-            }
-            className="inline-flex items-center gap-2 rounded-lg bg-main-blue px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
-            onClick={() => setCreateOpen(true)}
-          >
-            <Plus className="h-4 w-4" />
-            New asset
-          </button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
+            <SendFeedbackButton />
+            <button
+              type="button"
+              disabled={assetCapReached}
+              title={
+                assetCapReached
+                  ? "Unit limit reached for your plan (each new asset adds one unit). Open Settings → Plan & usage."
+                  : undefined
+              }
+              className="inline-flex items-center gap-2 rounded-lg bg-main-blue px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+              onClick={() => setCreateOpen(true)}
+            >
+              <Plus className="h-4 w-4" />
+              New asset
+            </button>
+          </div>
           {assetCapReached ? (
             <p className="max-w-xs text-right text-xs text-muted">
               Unit limit reached. Remove a unit or review limits under Settings → Plan & usage.

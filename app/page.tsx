@@ -5,6 +5,7 @@ import { MarketingHome } from "@/components/marketing/marketing-home";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { getDefaultAppRoute } from "@/lib/default-route";
 
 export default function HomePage() {
   const { user, ready } = useAuth();
@@ -12,7 +13,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!ready) return;
-    if (user) router.replace("/dashboard");
+    if (user) router.replace(getDefaultAppRoute(user.role));
   }, [user, ready, router]);
 
   if (!ready || user) {

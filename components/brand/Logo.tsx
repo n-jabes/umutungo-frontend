@@ -20,7 +20,7 @@ export function Logo({ className, showTagline = true, size = "md" }: LogoProps) 
     size === "sm" ? "text-[16px]" : size === "lg" ? "text-[24px]" : "text-[20px]";
 
   return (
-    <Link href="/dashboard" className={cn("group inline-flex flex-col gap-1", className)}>
+    <Link href="/" className={cn("group inline-flex flex-col gap-1", className)}>
 
       <div className="flex items-center gap-[3px]">
 

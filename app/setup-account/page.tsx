@@ -13,6 +13,7 @@ import {
   passwordMeetsAllRules,
 } from "@/lib/password-rules";
 import { cn } from "@/lib/utils";
+import { getDefaultAppRoute } from "@/lib/default-route";
 
 function SetupAccountContent() {
   const params = useSearchParams();
@@ -37,8 +38,8 @@ function SetupAccountContent() {
     if (password !== confirmPassword) return setError("Passwords do not match.");
     setPending(true);
     try {
-      await setupPassword({ token, password });
-      router.replace("/dashboard");
+      const activated = await setupPassword({ token, password });
+      router.replace(getDefaultAppRoute(activated.role));
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
