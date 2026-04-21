@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Eye, EyeOff, Lock } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -8,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { useAuth } from "@/contexts/auth-context";
-import { deleteMyAccount, updateMyAccountProfile } from "@/lib/account-client";
+import { changeMyPassword, deleteMyAccount, updateMyAccountProfile } from "@/lib/account-client";
 import { getErrorMessage } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import {
@@ -30,6 +31,12 @@ export function ProfileAccountPanel({ role }: { role: ProfileRole }) {
   const [phoneHint, setPhoneHint] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -98,6 +105,25 @@ export function ProfileAccountPanel({ role }: { role: ProfileRole }) {
     onError: (e) => toast.error(getErrorMessage(e)),
   });
 
+  const updatePassword = useMutation({
+    mutationFn: async () =>
+      changeMyPassword({
+        currentPassword,
+        newPassword,
+        confirmPassword,
+      }),
+    onSuccess: async () => {
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      await logout();
+      await qc.clear();
+      toast.success("Password changed. Please sign in again.");
+      router.replace("/login");
+    },
+    onError: (e) => toast.error(getErrorMessage(e)),
+  });
+
   if (!user) return null;
 
   const ownerDeleteNote =
@@ -110,6 +136,8 @@ export function ProfileAccountPanel({ role }: { role: ProfileRole }) {
     setDeleteModalOpen(false);
     setDeletePassword("");
   }
+
+  const passwordMismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
 
   return (
     <div className="space-y-8">
@@ -225,6 +253,120 @@ export function ProfileAccountPanel({ role }: { role: ProfileRole }) {
           {saveProfile.isPending ? "Saving…" : "Save changes"}
         </Button>
       </form>
+
+      <Card className="max-w-xl border-border bg-card p-6 shadow-sm">
+        <div>
+          <h3 className="text-sm font-semibold text-foreground">Change password</h3>
+          <p className="mt-1 text-sm text-muted">
+            Use your current password to confirm this action. For your security, you will be signed out on all devices
+            after the password is changed.
+          </p>
+        </div>
+        <form
+          className="mt-4 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            updatePassword.mutate();
+          }}
+        >
+          <div className="space-y-1.5">
+            <label htmlFor="current-password" className="text-xs font-medium text-muted">
+              Current password
+            </label>
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input
+                id="current-password"
+                type={showCurrentPassword ? "text" : "password"}
+                autoComplete="current-password"
+                className="w-full rounded-lg border border-border bg-background py-2 pl-10 pr-10 text-sm outline-none ring-main-blue/20 focus:ring-2"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted transition hover:bg-muted-bg hover:text-foreground"
+                aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
+                onClick={() => setShowCurrentPassword((v) => !v)}
+              >
+                {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="new-password" className="text-xs font-medium text-muted">
+              New password
+            </label>
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input
+                id="new-password"
+                type={showNewPassword ? "text" : "password"}
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+                className="w-full rounded-lg border border-border bg-background py-2 pl-10 pr-10 text-sm outline-none ring-main-blue/20 focus:ring-2"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted transition hover:bg-muted-bg hover:text-foreground"
+                aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+                onClick={() => setShowNewPassword((v) => !v)}
+              >
+                {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="confirm-password" className="text-xs font-medium text-muted">
+              Confirm new password
+            </label>
+            <div className="relative">
+              <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+              <input
+                id="confirm-password"
+                type={showConfirmPassword ? "text" : "password"}
+                autoComplete="new-password"
+                minLength={8}
+                maxLength={128}
+                className="w-full rounded-lg border border-border bg-background py-2 pl-10 pr-10 text-sm outline-none ring-main-blue/20 focus:ring-2"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+              <button
+                type="button"
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted transition hover:bg-muted-bg hover:text-foreground"
+                aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"}
+                onClick={() => setShowConfirmPassword((v) => !v)}
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {passwordMismatch ? <p className="text-xs text-red-600">Passwords do not match.</p> : null}
+          </div>
+
+          <p className="text-xs text-muted">Use 8-128 characters and avoid reusing old passwords.</p>
+          <Button
+            type="submit"
+            disabled={
+              updatePassword.isPending ||
+              !currentPassword.trim() ||
+              !newPassword.trim() ||
+              !confirmPassword.trim() ||
+              passwordMismatch
+            }
+          >
+            {updatePassword.isPending ? "Updating…" : "Update password"}
+          </Button>
+        </form>
+      </Card>
 
       <Card className="border-red-200/80 bg-red-50/40 p-6 dark:border-red-900/50 dark:bg-red-950/20">
         <h3 className="text-sm font-semibold text-foreground">Danger zone</h3>

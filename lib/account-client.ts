@@ -35,3 +35,12 @@ export async function deleteMyAccount(payload: { password: string }) {
   });
   return unwrap(data);
 }
+
+export async function changeMyPassword(payload: {
+  currentPassword: string;
+  newPassword: string;
+  confirmPassword: string;
+}) {
+  const { data } = await rawApi.post<Ok<{ updated: boolean }>>("/users/me/change-password", payload);
+  return unwrap(data);
+}
