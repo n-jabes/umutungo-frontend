@@ -362,6 +362,9 @@ export function MarketingHome() {
             <a href="#testimonials" className="transition hover:text-foreground">
               Customers
             </a>
+            <Link href="/contact" className="transition hover:text-foreground">
+              Contact
+            </Link>
           </nav>
           <div className="relative z-10 flex items-center gap-2 sm:gap-3">
             <Link href="/login" className={cn("hidden text-sm font-medium text-muted hover:text-foreground sm:inline")}>
@@ -586,6 +589,9 @@ export function MarketingHome() {
               </Link>
               <Link href="/register" className="hover:text-foreground">
                 Register
+              </Link>
+              <Link href="/contact" className="hover:text-foreground">
+                Contact
               </Link>
               <span>© {new Date().getFullYear()} Umutungo</span>
             </div>

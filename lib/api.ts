@@ -161,6 +161,21 @@ export const api = {
     return unwrap(data);
   },
 
+  async submitPublicContact(body: {
+    name: string;
+    email: string;
+    phone?: string | null;
+    company?: string | null;
+    subject: string;
+    message: string;
+    useCase?: "owner" | "manager" | "agent" | "other";
+    website?: string;
+    formStartedAt: number;
+  }) {
+    const { data } = await rawApi.post<Ok<{ sent: boolean }>>("/public/contact", body);
+    return unwrap(data);
+  },
+
   async login(body: { email?: string; phone?: string; password: string }) {
     const { data } = await rawApi.post<Ok<{ user: UserPublic; accessToken: string; refreshToken: string }>>(
       "/auth/login",
