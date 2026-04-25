@@ -15,7 +15,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import { Button, buttonClassName } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { api, getErrorMessage } from "@/lib/api";
 import { cn } from "@/lib/utils";
 

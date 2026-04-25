@@ -179,7 +179,7 @@ export function PlatformAdminAccountsPanel() {
     queryFn: () => api.listPlatformPlans(),
   });
 
-  const owners = ownersQuery.data?.items ?? [];
+  const owners = useMemo(() => ownersQuery.data?.items ?? [], [ownersQuery.data?.items]);
 
   const userById = useMemo(() => {
     const m = new Map<string, UserPublic>();
